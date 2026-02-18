@@ -2084,7 +2084,7 @@ html, body {{
 }}
 .boot-hint {{
     position: fixed;
-    bottom: 22vh;
+    bottom: 12vh;
     left: 50%;
     transform: translateX(calc(-50% + 0.5em));
     font-family: 'Orbitron', monospace;
