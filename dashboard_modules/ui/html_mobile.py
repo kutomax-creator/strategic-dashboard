@@ -72,7 +72,7 @@ def build_mobile_html() -> str:
     """モバイル版ダッシュボードの全HTMLを生成"""
 
     # ─── 画像読込 ──────────────────────────────────────────
-    boot_splash_img = _load_image_b64("opening.png")
+    boot_splash_img = _load_image_b64("opening2.png")
     back_logo_img = _load_image_b64("back.png")
     map_img_data = IMG_MAP or ""
 
@@ -416,7 +416,7 @@ html, body {{
 /* ── Header ── */
 .m-header {{
     text-align: center;
-    padding: 14px 12px 10px;
+    padding: 30px 12px 10px;
     border-bottom: 1px solid rgba(0,255,204,0.15);
     background: linear-gradient(180deg, rgba(0,20,40,0.95) 0%, rgba(0,0,0,0.95) 100%);
     position: sticky;
@@ -450,7 +450,7 @@ html, body {{
     align-items: center;
     gap: 5px;
     font-family: 'Orbitron', monospace;
-    font-size: 0.4rem;
+    font-size: 0.55rem;
     letter-spacing: 2px;
     color: rgba(0,255,204,0.7);
     cursor: pointer;
