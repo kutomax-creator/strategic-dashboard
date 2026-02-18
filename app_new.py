@@ -8,6 +8,9 @@ SF映画風の戦略コックピット・ダッシュボード
 import streamlit as st
 import streamlit.components.v1 as components
 import time
+import json
+import os
+from pathlib import Path
 
 # Configuration
 from dashboard_modules.config import PAGE_CONFIG
@@ -25,6 +28,38 @@ from dashboard_modules.analysis.opportunities import generate_opportunities, gen
 
 # UI
 from dashboard_modules.ui.html_builder import build_dashboard_html
+
+# ─── Report Persistence ──────────────────────────────────────────────
+_REPORT_CACHE_FILE = Path(__file__).resolve().parent / "static" / "_report_cache.json"
+
+def _save_reports(report_data: dict, opportunities: list):
+    """生成済みレポートをJSONに保存"""
+    try:
+        _REPORT_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _REPORT_CACHE_FILE.write_text(json.dumps({
+            "report_data_cache": report_data,
+            "generated_opportunities": opportunities,
+        }, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+
+def _load_reports():
+    """保存済みレポートを復元"""
+    try:
+        if _REPORT_CACHE_FILE.exists():
+            data = json.loads(_REPORT_CACHE_FILE.read_text(encoding="utf-8"))
+            return data.get("report_data_cache", {}), data.get("generated_opportunities", [])
+    except Exception:
+        pass
+    return None, None
+
+# リロード時にsession_stateが空なら保存済みを復元
+if "reports_ready" not in st.session_state:
+    cached_reports, cached_opps = _load_reports()
+    if cached_reports:
+        st.session_state["report_data_cache"] = cached_reports
+        st.session_state["generated_opportunities"] = cached_opps
+        st.session_state["reports_ready"] = True
 
 # ─── Page Config ─────────────────────────────────────────────────────
 st.set_page_config(**PAGE_CONFIG)
@@ -76,7 +111,7 @@ def render():
     reports_ready = st.session_state.get("reports_ready", False)
 
     html = build_dashboard_html()
-    components.html(html, height=860 if not reports_ready else 900, scrolling=False)
+    components.html(html, height=860 if not reports_ready else 2400, scrolling=True)
 
     # チャット状態初期化（常に実行）
     if "chat_messages" not in st.session_state:
@@ -189,6 +224,7 @@ def render():
             st.session_state["report_data_cache"] = report_data_cache
             st.session_state["generated_opportunities"] = opportunities
             st.session_state["reports_ready"] = True
+            _save_reports(report_data_cache, opportunities)
             time.sleep(0.5)
             st.rerun()
     else:
