@@ -30,6 +30,35 @@ from dashboard_modules.ui.html_builder import build_dashboard_html
 st.set_page_config(**PAGE_CONFIG)
 
 
+# ─── Password Gate ───────────────────────────────────────────────────
+def check_password() -> bool:
+    """パスワード認証。st.secrets に password が設定されていなければスキップ。"""
+    try:
+        correct_pw = st.secrets["password"]
+    except (KeyError, FileNotFoundError):
+        return True  # secrets未設定ならスキップ（ローカル開発用）
+
+    if st.session_state.get("authenticated"):
+        return True
+
+    st.markdown("""<style>
+        html, body, [data-testid="stApp"] { background: #000 !important; }
+        .login-box { max-width: 400px; margin: 15vh auto; text-align: center; }
+        .login-box h2 { color: rgba(0,255,204,0.9); font-family: monospace; letter-spacing: 4px; }
+        .login-box p { color: rgba(0,255,204,0.5); font-size: 0.8rem; }
+    </style>""", unsafe_allow_html=True)
+    st.markdown('<div class="login-box"><h2>STRATEGIC DASHBOARD</h2><p>Enter access code</p></div>', unsafe_allow_html=True)
+
+    pw = st.text_input("Password", type="password", label_visibility="collapsed")
+    if pw:
+        if pw == correct_pw:
+            st.session_state["authenticated"] = True
+            st.rerun()
+        else:
+            st.error("Access denied")
+    return False
+
+
 # ─── Render ──────────────────────────────────────────────────────────
 def render():
     # Hide Streamlit UI chrome
@@ -350,6 +379,8 @@ def render():
 
 # ─── Main ────────────────────────────────────────────────────────
 def main():
+    if not check_password():
+        return
     render()
 
 
