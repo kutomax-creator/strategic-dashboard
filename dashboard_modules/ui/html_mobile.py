@@ -549,6 +549,23 @@ details[open] > summary {{
     display: block;
 }}
 
+/* ── Panel Frame (News/Press枠) ── */
+.m-panel-frame {{
+    border: 1px solid rgba(0,255,204,0.15);
+    border-radius: 6px;
+    padding: 10px 12px 12px;
+    overflow: hidden;
+}}
+.m-panel-frame-title {{
+    font-family: 'Orbitron', monospace;
+    font-size: 0.5rem;
+    letter-spacing: 2px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}}
+
 /* ── Quick Links ── */
 .quick-links {{
     display: flex;
@@ -972,28 +989,37 @@ details[open] > summary {{
 
         <!-- Panel 1: Trending Topics -->
         <div id="newsPanel" class="bu-content active">
-            <div class="quick-links">
-                <a href="https://www.nikkei.com/" target="_blank" class="quick-link">NIKKEI</a>
-                <a href="https://newspicks.com/search/?q=KDDI&t=top" target="_blank" class="quick-link">NEWSPICKS</a>
+            <div class="m-panel-frame" style="border-color:rgba(255,170,0,0.3);">
+                <div class="m-panel-frame-title" style="color:#ffaa00;">TRENDING TOPICS</div>
+                <div class="quick-links">
+                    <a href="https://www.nikkei.com/" target="_blank" class="quick-link">NIKKEI</a>
+                    <a href="https://newspicks.com/search/?q=KDDI&t=top" target="_blank" class="quick-link">NEWSPICKS</a>
+                </div>
+                {news_html}
             </div>
-            {news_html}
         </div>
 
         <!-- Panel 2: KDDI Press -->
         <div id="pressPanel" class="bu-content">
-            <div class="quick-links">
-                <a href="https://newsroom.kddi.com/" target="_blank" class="quick-link">KDDI NEWSROOM</a>
+            <div class="m-panel-frame" style="border-color:rgba(255,102,153,0.3);">
+                <div class="m-panel-frame-title" style="color:#ff6699;">KDDI PRESS RELEASE</div>
+                <div class="quick-links">
+                    <a href="https://newsroom.kddi.com/" target="_blank" class="quick-link">KDDI NEWSROOM</a>
+                </div>
+                {press_html}
             </div>
-            {press_html}
         </div>
 
         <!-- Panel 3: Fujitsu Press -->
         <div id="fujitsuPressPanel" class="bu-content">
-            <div class="quick-links">
-                <a href="https://global.fujitsu/ja-jp/pr" target="_blank" class="quick-link">FUJITSU PR</a>
-                <a href="https://global.fujitsu/ja-jp/uvance" target="_blank" class="quick-link">UVANCE</a>
+            <div class="m-panel-frame" style="border-color:rgba(0,170,255,0.3);">
+                <div class="m-panel-frame-title" style="color:#00aaff;">FUJITSU PRESS RELEASE</div>
+                <div class="quick-links">
+                    <a href="https://global.fujitsu/ja-jp/pr" target="_blank" class="quick-link">FUJITSU PR</a>
+                    <a href="https://global.fujitsu/ja-jp/uvance" target="_blank" class="quick-link">UVANCE</a>
+                </div>
+                {fujitsu_press_html}
             </div>
-            {fujitsu_press_html}
         </div>
 
         <!-- Panel 4: WAKONX -->
