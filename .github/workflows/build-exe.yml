@@ -1,0 +1,54 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:  # Manual trigger from GitHub UI
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build EXE with PyInstaller
+        run: |
+          pyinstaller --noconfirm --clean `
+            --name "StrategicDashboard" `
+            --windowed `
+            --add-data "app_new.py;." `
+            --add-data "opening.png;." `
+            --add-data "back.png;." `
+            --add-data "assets;assets" `
+            --add-data "dashboard_modules;dashboard_modules" `
+            --add-data "context;context" `
+            --add-data "static;static" `
+            --hidden-import=streamlit `
+            --hidden-import=streamlit.runtime.scriptrunner `
+            --hidden-import=streamlit.web.cli `
+            --hidden-import=anthropic `
+            --hidden-import=yfinance `
+            --hidden-import=feedparser `
+            --hidden-import=PIL `
+            --hidden-import=pandas `
+            --hidden-import=openpyxl `
+            --hidden-import=pypdf `
+            --collect-all streamlit `
+            main_desktop.py
+
+      - name: Create empty dirs
+        run: |
+          mkdir -p dist/StrategicDashboard/context
+          mkdir -p dist/StrategicDashboard/static
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StrategicDashboard-Windows
+          path: dist/StrategicDashboard/
+          compression-level: 9

@@ -1,0 +1,14 @@
+# Strategic Dashboard - 必要パッケージ一覧
+# インストール方法: pip install -r requirements.txt
+
+streamlit==1.50.0
+yfinance>=0.2.40
+feedparser>=6.0.11
+anthropic>=0.25.0
+Pillow>=10.0.0
+pandas>=2.0.0
+requests>=2.31.0
+openpyxl>=3.1.0
+PyPDF2>=3.0.0
+pywebview>=5.0
+pyinstaller>=6.0

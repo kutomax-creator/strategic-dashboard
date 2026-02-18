@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+dist/
+build/
+*.spec
+StrategicDashboard/
+StrategicDashboard.zip
+app_old_backup.py
+.claude/
+*.DS_Store
