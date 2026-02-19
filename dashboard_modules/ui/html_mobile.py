@@ -416,7 +416,7 @@ html, body {{
 /* ── Header ── */
 .m-header {{
     text-align: center;
-    padding: 30px 12px 10px;
+    padding: 42px 12px 10px;
     border-bottom: 1px solid rgba(0,255,204,0.15);
     background: linear-gradient(180deg, rgba(0,20,40,0.95) 0%, rgba(0,0,0,0.95) 100%);
     position: sticky;
@@ -973,7 +973,7 @@ details[open] > summary {{
         <span class="pulse-dot"></span>SYSTEM ONLINE
     </div>
     <div class="m-header-top">
-        <h1>STRATEGIC DASHBOARD</h1>
+        <h1>ACCOUNT INTELLIGENCE MONITOR</h1>
     </div>
     <div class="m-sub">FUJITSU // KDDI ACCOUNT INTELLIGENCE</div>
 </div>
