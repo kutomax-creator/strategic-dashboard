@@ -111,7 +111,7 @@ def render():
     reports_ready = st.session_state.get("reports_ready", False)
 
     html = build_dashboard_html()
-    components.html(html, height=860 if not reports_ready else 2400, scrolling=True)
+    components.html(html, height=860, scrolling=True)
 
     # チャット状態初期化（常に実行）
     if "chat_messages" not in st.session_state:
