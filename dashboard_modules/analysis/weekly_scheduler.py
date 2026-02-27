@@ -135,12 +135,11 @@ def run_weekly_generation(
 
     # Step 4: Gamma API送信（利用可能な場合）
     gamma_url = ""
-    from ..config import HAS_GAMMA
-    if HAS_GAMMA:
+    from ..integrations.gamma_client import is_available as gamma_available, generate_and_wait
+    if gamma_available():
         if progress_callback:
             progress_callback(60, "Gamma APIでスライド生成中...")
         try:
-            from ..integrations.gamma_client import generate_and_wait
             gamma_result = generate_and_wait(
                 proposal["gamma_input"],
                 num_cards=10,
@@ -230,13 +229,12 @@ def run_manual_generation(
 
     # Gamma API送信（利用可能な場合）
     gamma_url = ""
-    from ..config import HAS_GAMMA
-    if HAS_GAMMA:
+    from ..integrations.gamma_client import is_available as gamma_available, generate_and_wait as gamma_gen
+    if gamma_available():
         if progress_callback:
             progress_callback(60, "Gamma APIでスライド生成中...")
         try:
-            from ..integrations.gamma_client import generate_and_wait
-            gamma_result = generate_and_wait(
+            gamma_result = gamma_gen(
                 proposal["gamma_input"],
                 num_cards=10,
                 callback=lambda msg: progress_callback(70, msg) if progress_callback else None,

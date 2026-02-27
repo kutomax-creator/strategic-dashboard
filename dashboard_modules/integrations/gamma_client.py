@@ -8,9 +8,22 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
+import os
 import requests
 
-from ..config import GAMMA_API_KEY
+
+def _get_gamma_key() -> str:
+    key = os.getenv("GAMMA_API_KEY", "")
+    if not key:
+        try:
+            import streamlit as st
+            key = st.secrets.get("GAMMA_API_KEY", "")
+        except Exception:
+            pass
+    return key
+
+
+GAMMA_API_KEY = _get_gamma_key()
 
 _BASE_URL = "https://public-api.gamma.app/v1.0"
 _POLL_INTERVAL = 5  # seconds
