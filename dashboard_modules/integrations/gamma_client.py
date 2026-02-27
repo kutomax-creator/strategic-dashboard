@@ -82,11 +82,11 @@ def create_presentation(
         "textMode": "generate",
         "format": "presentation",
         "numCards": num_cards,
-        "language": language,
         "textOptions": {
             "amount": "medium",
             "tone": tone,
             "audience": audience,
+            "language": language,
         },
         "imageOptions": {
             "source": "pictographic",
