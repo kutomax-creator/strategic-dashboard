@@ -39,6 +39,20 @@ except Exception:
 # AI利用可否チェック（AnthropicまたはFujitsu社内APIのいずれかが使えればTrue）
 from .ai_client import HAS_AI  # noqa: E402
 
+# Gamma API キー設定（提案書自動生成用）
+def _get_gamma_key() -> str:
+    key = os.getenv("GAMMA_API_KEY", "")
+    if not key:
+        try:
+            import streamlit as st
+            key = st.secrets.get("GAMMA_API_KEY", "")
+        except Exception:
+            pass
+    return key
+
+GAMMA_API_KEY = _get_gamma_key()
+HAS_GAMMA = bool(GAMMA_API_KEY)
+
 # Asset directory
 ASSET_DIR = str(APP_ROOT / "assets")
 

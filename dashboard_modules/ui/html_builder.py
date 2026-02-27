@@ -14,6 +14,7 @@ from ..components.context import get_active_context_data
 from ..components.intelligence import fetch_bu_intelligence, WAKONX_KEYWORDS, BX_KEYWORDS
 from ..analysis.insights import run_insight_matcher, check_alerts
 from ..analysis.opportunities import generate_opportunities
+from ..analysis.weekly_scheduler import days_since_last_generation
 
 
 def _load_image_b64(filename: str) -> str:
@@ -26,6 +27,17 @@ def _load_image_b64(filename: str) -> str:
     except Exception as e:
         print(f"[IMG] Failed to load {filename}: {e}")
         return ""
+
+
+def _build_weekly_badge() -> str:
+    """HUDヘッダー用の週次生成ステータスバッジを構築"""
+    days = days_since_last_generation()
+    if days is None:
+        return "WEEKLY GEN: NEVER"
+    elif days >= 7:
+        return f"WEEKLY GEN: {days}D AGO"
+    else:
+        return f"WEEKLY GEN: {days}D AGO"
 
 
 def build_dashboard_html() -> str:
@@ -713,6 +725,27 @@ html, body {{
     font-size: 0.9rem; font-weight: 900;
     letter-spacing: 8px; color: rgba(0,255,204,0.95);
     text-shadow: 0 0 16px rgba(0,255,204,0.4);
+}}
+.hud-weekly-badge {{
+    position: absolute; left: 2%;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.4rem;
+    letter-spacing: 2px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    border: 1px solid rgba(180,120,255,0.3);
+    background: rgba(180,120,255,0.08);
+    color: rgba(180,120,255,0.8);
+    text-shadow: 0 0 6px rgba(180,120,255,0.3);
+}}
+.hud-weekly-badge.due {{
+    border-color: rgba(255,170,0,0.5);
+    color: rgba(255,170,0,0.9);
+    animation: pulse-badge 2s infinite;
+}}
+@keyframes pulse-badge {{
+    0%, 100% {{ opacity: 1; }}
+    50% {{ opacity: 0.5; }}
 }}
 .hud-clock {{
     position: absolute; right: 2%;
@@ -2200,6 +2233,7 @@ html, body {{
     <div class="hud-header">
         {header_frame}
         <div class="hud-status" onclick="returnToBootScreen()" style="cursor:pointer;"><span class="pulse-dot"></span>SYSTEM ONLINE</div>
+        <div class="hud-weekly-badge">{_build_weekly_badge()}</div>
         <div class="hud-clock" id="liveClock">{now}</div>
     </div>
 
@@ -2413,19 +2447,51 @@ function saveReport(idx, title){{
 }}
 function generateProposal(idx, title){{
     var btn = document.getElementById('proposalBtn'+idx);
-    btn.textContent = 'GENERATING...';
-    btn.disabled = true;
-    btn.style.opacity = '0.5';
+    var btnTop = document.getElementById('proposalBtnTop'+idx);
+    [btn, btnTop].forEach(function(b) {{
+        if (b) {{ b.textContent = 'GENERATING...'; b.disabled = true; b.style.opacity = '0.5'; }}
+    }});
     var overlay = document.getElementById('reportOverlay'+idx);
     var bodyEl = overlay.querySelector('.report-overlay-body');
-    var reportText = bodyEl ? bodyEl.innerText : '';
+    var reportText = bodyEl ? bodyEl.innerText.substring(0, 5000) : '';
 
-    // Note: This is a placeholder - actual implementation requires Streamlit callback
-    alert('提案骨子生成機能は現在開発中です。\\n\\nStreamlitのコールバック機能を使って実装予定です。\\n代わりに「SEND TO GEMINI」ボタンをご利用ください。');
+    // Streamlit query param方式でトリガー
+    // セッションストレージに保存し、親Streamlitに通知
+    try {{
+        var proposalData = JSON.stringify({{
+            action: 'generate_hypothesis',
+            opportunity_title: title,
+            report_content: reportText,
+            timestamp: Date.now()
+        }});
+        // Streamlit parent window に通知
+        window.parent.postMessage({{
+            type: 'streamlit:setComponentValue',
+            data: proposalData
+        }}, '*');
 
-    btn.textContent = '📝 CREATE PROPOSAL';
-    btn.disabled = false;
-    btn.style.opacity = '1';
+        // URLパラメータ方式でもフォールバック
+        var url = new URL(window.parent.location.href);
+        url.searchParams.set('hypothesis_trigger', encodeURIComponent(title));
+        window.parent.location.href = url.toString();
+    }} catch(e) {{
+        // フォールバック: クリップボードにコピーして手動指示
+        var proposalPrompt = '# 仮説提案書生成リクエスト\\n\\n'
+            + '## オポチュニティ: ' + title + '\\n\\n'
+            + '## レポート内容:\\n' + reportText + '\\n\\n'
+            + 'ダッシュボードの「GENERATE HYPOTHESIS」ボタンをクリックしてください。';
+        navigator.clipboard.writeText(proposalPrompt).then(function() {{
+            alert('提案情報をクリップボードにコピーしました。\\n\\nダッシュボード下部の「▶ GENERATE HYPOTHESIS」ボタンをクリックして提案書を生成してください。');
+        }}).catch(function() {{
+            alert('ダッシュボード下部の「▶ GENERATE HYPOTHESIS」ボタンをクリックして提案書を生成してください。');
+        }});
+    }}
+
+    setTimeout(function() {{
+        [btn, btnTop].forEach(function(b) {{
+            if (b) {{ b.textContent = '📝 CREATE PROPOSAL'; b.disabled = false; b.style.opacity = '1'; }}
+        }});
+    }}, 3000);
 }}
 function sendToGemini(idx){{
     var overlay = document.getElementById('reportOverlay'+idx);

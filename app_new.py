@@ -25,6 +25,11 @@ from dashboard_modules.components.context import (
 
 # Analysis
 from dashboard_modules.analysis.opportunities import generate_opportunities, generate_detail_report
+from dashboard_modules.analysis.weekly_scheduler import (
+    is_generation_due, days_since_last_generation,
+    run_weekly_generation, run_manual_generation, get_generation_history,
+)
+from dashboard_modules.analysis.proposals import get_proposal_history
 
 # UI
 from dashboard_modules.ui.html_builder import build_dashboard_html
@@ -94,6 +99,50 @@ def check_password() -> bool:
     return False
 
 
+# ─── Hypothesis Generation Helper ────────────────────────────────────
+def _run_hypothesis_generation():
+    """仮説提案書の生成フローを実行"""
+    progress_bar = st.progress(0, text="Preparing hypothesis generation...")
+
+    # ニュースデータ取得
+    from dashboard_modules.components.intelligence import fetch_bu_intelligence, WAKONX_KEYWORDS, BX_KEYWORDS
+    wakonx_intel = fetch_bu_intelligence("WAKONX", WAKONX_KEYWORDS)
+    bx_intel = fetch_bu_intelligence("BX", BX_KEYWORDS)
+    wakonx_articles = wakonx_intel["articles"][:5]
+    bx_articles = bx_intel["articles"][:5]
+    kddi_general = fetch_news_for("KDDI", 3)
+    kddi_combined = wakonx_articles + bx_articles + kddi_general
+    fujitsu_news_raw = fetch_news_for(
+        "%E5%AF%8C%E5%A3%AB%E9%80%9A+Uvance+OR+%E5%AF%8C%E5%A3%AB%E9%80%9A+DX+OR+%E5%AF%8C%E5%A3%AB%E9%80%9A+%E5%85%B1%E5%89%B5", 8
+    )
+    kddi_tuple = tuple(a["title"] for a in kddi_combined)
+    fujitsu_tuple = tuple(a["title"] for a in fujitsu_news_raw)
+
+    def _progress_cb(pct, text):
+        progress_bar.progress(min(pct, 100), text=text)
+
+    result = run_weekly_generation(
+        kddi_news=kddi_tuple,
+        fujitsu_news=fujitsu_tuple,
+        progress_callback=_progress_cb,
+    )
+
+    if result.success:
+        st.session_state["hypothesis_result"] = {
+            "gamma_input": result.gamma_input,
+            "approach_plan": result.approach_plan,
+            "gamma_url": result.gamma_url,
+            "metadata": result.metadata,
+            "opportunity_title": result.opportunity_title,
+            "generated_at": result.generated_at,
+        }
+        progress_bar.progress(100, text="Hypothesis proposal generated!")
+        time.sleep(0.5)
+        st.rerun()
+    else:
+        progress_bar.progress(100, text=f"Error: {result.error}")
+
+
 # ─── Render ──────────────────────────────────────────────────────────
 def render():
     # Hide Streamlit UI chrome
@@ -109,6 +158,16 @@ def render():
     </style>""", unsafe_allow_html=True)
 
     reports_ready = st.session_state.get("reports_ready", False)
+
+    # URL parameter trigger from HTML iframe (CREATE PROPOSAL button)
+    query_params = st.query_params
+    hypo_trigger = query_params.get("hypothesis_trigger")
+    if hypo_trigger and not st.session_state.get("_hypo_running"):
+        st.session_state["_hypo_running"] = True
+        # Clear the query parameter
+        st.query_params.clear()
+        _run_hypothesis_generation()
+        st.session_state["_hypo_running"] = False
 
     html = build_dashboard_html()
     components.html(html, height=860, scrolling=True)
@@ -173,13 +232,30 @@ def render():
             div.stProgress { margin: 10px auto !important; max-width: 400px; }
     </style>""", unsafe_allow_html=True)
 
+    # ─── 週次自動チェック ───────────────────────────────────────
+    if is_generation_due():
+        days = days_since_last_generation()
+        if days is None:
+            notice_text = "HYPOTHESIS PROPOSAL: 未生成 — 初回生成を推奨"
+        else:
+            notice_text = f"HYPOTHESIS PROPOSAL: 前回から{days}日経過 — 更新を推奨"
+        st.markdown(
+            f'<div style="text-align:center;padding:4px 0;font-size:0.55rem;'
+            f'font-family:\'Orbitron\',monospace;letter-spacing:2px;'
+            f'color:rgba(255,170,0,0.8);text-shadow:0 0 6px rgba(255,170,0,0.3);">'
+            f'{notice_text}</div>',
+            unsafe_allow_html=True,
+        )
+
     # ボタン配置
     if not reports_ready:
-        # レポート未生成時：両方のボタン表示
-        col1, col2 = st.columns([1, 1])
+        # レポート未生成時：3ボタン表示
+        col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
             generate_button = st.button("▶ GENERATE REPORTS")
         with col2:
+            hypothesis_button = st.button("▶ GENERATE HYPOTHESIS", key="gen_hypo_pre")
+        with col3:
             if st.button("▶ STRATEGY CHAT", key="open_chat_dialog"):
                 st.session_state.show_chat_dialog = True
 
@@ -227,10 +303,18 @@ def render():
             _save_reports(report_data_cache, opportunities)
             time.sleep(0.5)
             st.rerun()
+
+        if hypothesis_button:
+            _run_hypothesis_generation()
     else:
-        # レポート生成後：チャットボタンのみ表示
-        if st.button("▶ STRATEGY CHAT", key="open_chat_dialog_after"):
-            st.session_state.show_chat_dialog = True
+        # レポート生成後：仮説ボタン＋チャットボタン表示
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.button("▶ GENERATE HYPOTHESIS", key="gen_hypo_post"):
+                _run_hypothesis_generation()
+        with col2:
+            if st.button("▶ STRATEGY CHAT", key="open_chat_dialog_after"):
+                st.session_state.show_chat_dialog = True
 
     # ─── Strategy Chat Dialog ────────────────────────────────────
     if "show_chat_dialog" not in st.session_state:
@@ -268,6 +352,115 @@ def render():
     if st.session_state.show_chat_dialog:
         show_chat()
         st.session_state.show_chat_dialog = False
+
+    # ─── Hypothesis Proposal Result Display ──────────────────────
+    if st.session_state.get("hypothesis_result"):
+        result = st.session_state["hypothesis_result"]
+        st.markdown("""<style>
+        .hypothesis-panel {
+            background: rgba(0,8,18,0.95);
+            border: 1px solid rgba(180,120,255,0.3);
+            border-radius: 4px;
+            padding: 16px 20px;
+            margin: 10px auto;
+            max-width: 900px;
+        }
+        .hypothesis-panel .hypo-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 0.55rem;
+            letter-spacing: 3px;
+            color: rgba(180,120,255,0.9);
+            text-align: center;
+            text-shadow: 0 0 8px rgba(180,120,255,0.3);
+            margin-bottom: 12px;
+        }
+        .hypothesis-panel .hypo-content {
+            color: rgba(0,255,204,0.7);
+            font-size: 0.7rem;
+            font-family: monospace;
+            line-height: 1.6;
+        }
+        .hypothesis-panel a {
+            color: rgba(0,255,204,0.9);
+            text-decoration: underline;
+        }
+        </style>""", unsafe_allow_html=True)
+
+        st.markdown('<div class="hypothesis-panel">', unsafe_allow_html=True)
+        st.markdown('<div class="hypo-title">HYPOTHESIS PROPOSAL GENERATED</div>', unsafe_allow_html=True)
+
+        if result.get("gamma_url"):
+            st.markdown(
+                f'<div class="hypo-content" style="text-align:center;margin-bottom:12px;">'
+                f'<a href="{result["gamma_url"]}" target="_blank">Gamma Presentation Link</a></div>',
+                unsafe_allow_html=True,
+            )
+
+        with st.expander("Proposal Slides (Text)", expanded=False):
+            st.markdown(result.get("gamma_input", ""), unsafe_allow_html=False)
+
+        with st.expander("Approach Plan", expanded=False):
+            st.markdown(result.get("approach_plan", ""), unsafe_allow_html=False)
+
+        meta = result.get("metadata", {})
+        if meta:
+            st.markdown(
+                f'<div class="hypo-content" style="font-size:0.55rem;color:rgba(180,120,255,0.5);text-align:center;">'
+                f'Slides: {meta.get("slide_count", "?")} | '
+                f'UVANCE Refs: {meta.get("uvance_solutions_referenced", "?")} | '
+                f'PoC Fatigue: {"Yes" if meta.get("has_poc_fatigue") else "No"} | '
+                f'ROI: {"Yes" if meta.get("has_roi") else "No"} | '
+                f'Gamma: {"Available" if meta.get("has_gamma_api") else "Not configured"}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # ─── Proposal History Panel ───────────────────────────────────
+    gen_history = get_generation_history()
+    if gen_history:
+        st.markdown("""<style>
+        .proposal-history {
+            background: rgba(0,8,18,0.95);
+            border: 1px solid rgba(180,120,255,0.15);
+            border-radius: 4px;
+            padding: 12px 20px;
+            margin: 10px auto;
+            max-width: 900px;
+        }
+        .proposal-history .ph-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 0.5rem;
+            letter-spacing: 3px;
+            color: rgba(180,120,255,0.7);
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        .proposal-history .ph-item {
+            color: rgba(0,255,204,0.6);
+            font-size: 0.6rem;
+            font-family: monospace;
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(180,120,255,0.08);
+        }
+        .proposal-history a { color: rgba(180,120,255,0.8); }
+        </style>""", unsafe_allow_html=True)
+
+        st.markdown('<div class="proposal-history">', unsafe_allow_html=True)
+        st.markdown('<div class="ph-title">PROPOSAL GENERATION HISTORY</div>', unsafe_allow_html=True)
+        for entry in reversed(gen_history[-5:]):
+            date_str = entry.get("generated_at", "")[:10]
+            title = entry.get("opportunity_title", "Unknown")[:60]
+            gamma_link = ""
+            if entry.get("gamma_url"):
+                gamma_link = f' | <a href="{entry["gamma_url"]}" target="_blank">Gamma</a>'
+            status = "OK" if entry.get("success") else "FAIL"
+            st.markdown(
+                f'<div class="ph-item">[{date_str}] {status} — {title}{gamma_link}</div>',
+                unsafe_allow_html=True,
+            )
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # ─── Context Library UI ──────────────────────────────────────
     if True:
