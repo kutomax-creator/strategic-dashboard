@@ -12,7 +12,13 @@ import os
 import requests
 
 
+_BASE_URL = "https://public-api.gamma.app/v1.0"
+_POLL_INTERVAL = 5  # seconds
+_MAX_POLL_TIME = 300  # 5 minutes
+
+
 def _get_gamma_key() -> str:
+    """毎回キーを取得（Streamlit Cloudのsecrets遅延読込に対応）"""
     key = os.getenv("GAMMA_API_KEY", "")
     if not key:
         try:
@@ -21,13 +27,6 @@ def _get_gamma_key() -> str:
         except Exception:
             pass
     return key
-
-
-GAMMA_API_KEY = _get_gamma_key()
-
-_BASE_URL = "https://public-api.gamma.app/v1.0"
-_POLL_INTERVAL = 5  # seconds
-_MAX_POLL_TIME = 300  # 5 minutes
 
 
 @dataclass
@@ -43,7 +42,7 @@ class GammaGeneration:
 
 def _headers() -> dict:
     return {
-        "X-API-KEY": GAMMA_API_KEY,
+        "X-API-KEY": _get_gamma_key(),
         "Content-Type": "application/json",
     }
 
@@ -74,7 +73,8 @@ def create_presentation(
     -------
     GammaGeneration  生成ジョブ情報
     """
-    if not GAMMA_API_KEY:
+    api_key = _get_gamma_key()
+    if not api_key:
         return GammaGeneration(error="GAMMA_API_KEY is not configured")
 
     payload = {
@@ -130,7 +130,7 @@ def poll_generation(generation_id: str) -> GammaGeneration:
     -------
     GammaGeneration  最新ステータス
     """
-    if not GAMMA_API_KEY:
+    if not _get_gamma_key():
         return GammaGeneration(error="GAMMA_API_KEY is not configured")
 
     try:
@@ -221,4 +221,4 @@ def generate_and_wait(
 
 def is_available() -> bool:
     """Gamma APIが利用可能か"""
-    return bool(GAMMA_API_KEY)
+    return bool(_get_gamma_key())

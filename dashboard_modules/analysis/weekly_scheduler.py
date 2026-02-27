@@ -135,6 +135,7 @@ def run_weekly_generation(
 
     # Step 4: Gamma API送信（利用可能な場合）
     gamma_url = ""
+    gamma_error = ""
     from ..integrations.gamma_client import is_available as gamma_available, generate_and_wait
     if gamma_available():
         if progress_callback:
@@ -148,13 +149,21 @@ def run_weekly_generation(
             if gamma_result.gamma_url:
                 gamma_url = gamma_result.gamma_url
             elif gamma_result.error:
-                print(f"[SCHEDULER] Gamma generation failed: {gamma_result.error}")
+                gamma_error = gamma_result.error
+                print(f"[SCHEDULER] Gamma generation failed: {gamma_error}")
         except Exception as e:
+            gamma_error = str(e)
             print(f"[SCHEDULER] Gamma API error: {e}")
+    else:
+        gamma_error = "GAMMA_API_KEY not configured"
 
     # Step 5: 結果保存
     if progress_callback:
         progress_callback(90, "結果を保存中...")
+
+    merged_meta = dict(proposal["metadata"])
+    if gamma_error:
+        merged_meta["gamma_error"] = gamma_error
 
     result = WeeklyResult(
         success=True,
@@ -163,7 +172,7 @@ def run_weekly_generation(
         approach_plan=proposal["approach_plan"],
         gamma_url=gamma_url,
         generated_at=now.isoformat(),
-        metadata=proposal["metadata"],
+        metadata=merged_meta,
     )
 
     _save_generation_result(result)
@@ -229,6 +238,7 @@ def run_manual_generation(
 
     # Gamma API送信（利用可能な場合）
     gamma_url = ""
+    gamma_error = ""
     from ..integrations.gamma_client import is_available as gamma_available, generate_and_wait as gamma_gen
     if gamma_available():
         if progress_callback:
@@ -242,12 +252,20 @@ def run_manual_generation(
             if gamma_result.gamma_url:
                 gamma_url = gamma_result.gamma_url
             elif gamma_result.error:
-                print(f"[MANUAL_GEN] Gamma error: {gamma_result.error}")
+                gamma_error = gamma_result.error
+                print(f"[MANUAL_GEN] Gamma error: {gamma_error}")
         except Exception as e:
+            gamma_error = str(e)
             print(f"[MANUAL_GEN] Gamma API error: {e}")
+    else:
+        gamma_error = "GAMMA_API_KEY not configured"
 
     if progress_callback:
         progress_callback(90, "結果を保存中...")
+
+    merged_meta = dict(proposal["metadata"])
+    if gamma_error:
+        merged_meta["gamma_error"] = gamma_error
 
     result = WeeklyResult(
         success=True,
@@ -256,7 +274,7 @@ def run_manual_generation(
         approach_plan=proposal["approach_plan"],
         gamma_url=gamma_url,
         generated_at=now.isoformat(),
-        metadata=proposal["metadata"],
+        metadata=merged_meta,
     )
 
     _save_generation_result(result)

@@ -404,13 +404,17 @@ def render():
 
         meta = result.get("metadata", {})
         if meta:
+            gamma_status = "Available" if meta.get("has_gamma_api") else "Not configured"
+            gamma_error = meta.get("gamma_error", "")
+            if gamma_error:
+                gamma_status = f'ERROR: {gamma_error[:80]}'
             st.markdown(
                 f'<div class="hypo-content" style="font-size:0.55rem;color:rgba(180,120,255,0.5);text-align:center;">'
                 f'Slides: {meta.get("slide_count", "?")} | '
                 f'UVANCE Refs: {meta.get("uvance_solutions_referenced", "?")} | '
                 f'PoC Fatigue: {"Yes" if meta.get("has_poc_fatigue") else "No"} | '
                 f'ROI: {"Yes" if meta.get("has_roi") else "No"} | '
-                f'Gamma: {"Available" if meta.get("has_gamma_api") else "Not configured"}'
+                f'Gamma: {gamma_status}'
                 f'</div>',
                 unsafe_allow_html=True,
             )
