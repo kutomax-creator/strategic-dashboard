@@ -4,14 +4,12 @@ Proposal Framework Generator - Generate proposal documents from opportunities
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
 
 import streamlit as st
-from ..config import HAS_AI, HAS_GAMMA, APP_ROOT
+from ..config import HAS_AI, APP_ROOT
 from ..ai_client import chat_completion
-from ..data.uvance_knowledge import get_uvance_context_for_proposal, get_poc_fatigue_context
-from ..data.kddi_watcher import get_intelligence_summary
-from ..components.context import get_active_context_data
 
 # ─── Proposal Framework Generator ────────────────────────────────
 @st.cache_data(ttl=7200)
@@ -136,6 +134,10 @@ def generate_hypothesis_proposal(
         }
 
     # コンテキスト情報を収集
+    from ..data.uvance_knowledge import get_uvance_context_for_proposal, get_poc_fatigue_context
+    from ..data.kddi_watcher import get_intelligence_summary
+    from ..components.context import get_active_context_data
+
     uvance_context = get_uvance_context_for_proposal(opportunity_title)
     poc_context = get_poc_fatigue_context()
     intel_summary = get_intelligence_summary(15)
@@ -303,7 +305,7 @@ KDDI経営層（CTO/CDO/事業部長クラス）が10枚のスライドで意思
         "slide_count": 10,
         "has_poc_fatigue": "PoC" in gamma_input,
         "has_roi": "ROI" in gamma_input or "投資回収" in gamma_input,
-        "has_gamma_api": HAS_GAMMA,
+        "has_gamma_api": bool(os.getenv("GAMMA_API_KEY", "")),
         "uvance_solutions_referenced": _count_uvance_references(gamma_input),
     }
 
