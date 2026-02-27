@@ -6,6 +6,7 @@ SF映画風の戦略コックピット・ダッシュボード（Streamlit）
 
 ## 起動方法
 ```
+cd ~/Projects/StrategicDashboard
 python3 -m streamlit run app_new.py
 ```
 URL: http://localhost:8502
@@ -31,6 +32,6 @@ URL: http://localhost:8502
     - `html_builder.py` — ダッシュボードHTML構築（最大のファイル）
 
 ## 注意事項
-- `app_old_backup.py` は旧一体型ファイル。触らないこと
 - 実行ファイルは必ず `app_new.py`（モジュール分割版）
 - AI APIキーは `config.py` で管理
+- プロジェクトルート: `~/Projects/StrategicDashboard/`

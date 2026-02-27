@@ -29,18 +29,24 @@ def _load_image_b64(filename: str) -> str:
         return ""
 
 
-def _build_weekly_badge() -> str:
-    """HUDヘッダー用の週次生成ステータスバッジを構築"""
+def _build_weekly_badge() -> tuple[str, bool]:
+    """HUDヘッダー用の週次生成ステータスバッジを構築。
+
+    Returns (badge_text, is_due)
+    """
     days = days_since_last_generation()
     if days is None:
-        return "WEEKLY GEN: NEVER"
+        return "WEEKLY GEN: NEVER", True
     elif days >= 7:
-        return f"WEEKLY GEN: {days}D AGO"
+        return f"WEEKLY GEN: {days}D AGO ⚠", True
     else:
-        return f"WEEKLY GEN: {days}D AGO"
+        return f"WEEKLY GEN: {days}D AGO", False
 
 
 def build_dashboard_html() -> str:
+    # Weekly badge
+    _weekly_text, _weekly_due = _build_weekly_badge()
+
     # Load boot splash image as base64
     boot_splash_img = _load_image_b64("opening.png")
 
@@ -2233,7 +2239,7 @@ html, body {{
     <div class="hud-header">
         {header_frame}
         <div class="hud-status" onclick="returnToBootScreen()" style="cursor:pointer;"><span class="pulse-dot"></span>SYSTEM ONLINE</div>
-        <div class="hud-weekly-badge">{_build_weekly_badge()}</div>
+        <div class="hud-weekly-badge{' due' if _weekly_due else ''}">{_weekly_text}</div>
         <div class="hud-clock" id="liveClock">{now}</div>
     </div>
 
