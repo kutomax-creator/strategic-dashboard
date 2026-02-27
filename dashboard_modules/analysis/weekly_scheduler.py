@@ -9,9 +9,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from ..config import APP_ROOT, HAS_GAMMA
-from ..data.kddi_watcher import accumulate_kddi_intelligence
-from .proposals import generate_hypothesis_proposal
+from ..config import APP_ROOT
 
 _SCHEDULE_FILE = APP_ROOT / "data" / "weekly_schedule.json"
 _PROPOSALS_DIR = APP_ROOT / "static" / "proposals"
@@ -102,6 +100,7 @@ def run_weekly_generation(
     if progress_callback:
         progress_callback(10, "KDDIインテリジェンス蓄積中...")
     try:
+        from ..data.kddi_watcher import accumulate_kddi_intelligence
         intel_result = accumulate_kddi_intelligence()
         print(f"[SCHEDULER] Intelligence accumulated: {intel_result['new_entries']} new entries")
     except Exception as e:
@@ -118,6 +117,7 @@ def run_weekly_generation(
     if progress_callback:
         progress_callback(40, "仮説提案書生成中...")
 
+    from .proposals import generate_hypothesis_proposal
     proposal = generate_hypothesis_proposal(
         opportunity_title=opportunity_title,
         report_content=report_content,
@@ -135,6 +135,7 @@ def run_weekly_generation(
 
     # Step 4: Gamma API送信（利用可能な場合）
     gamma_url = ""
+    from ..config import HAS_GAMMA
     if HAS_GAMMA:
         if progress_callback:
             progress_callback(60, "Gamma APIでスライド生成中...")
@@ -202,6 +203,7 @@ def run_manual_generation(
     if progress_callback:
         progress_callback(10, "KDDIインテリジェンス蓄積中...")
     try:
+        from ..data.kddi_watcher import accumulate_kddi_intelligence
         accumulate_kddi_intelligence()
     except Exception:
         pass
@@ -210,6 +212,7 @@ def run_manual_generation(
     if progress_callback:
         progress_callback(30, "仮説提案書生成中...")
 
+    from .proposals import generate_hypothesis_proposal
     proposal = generate_hypothesis_proposal(
         opportunity_title=opportunity_title,
         report_content=report_content,
@@ -227,6 +230,7 @@ def run_manual_generation(
 
     # Gamma API送信（利用可能な場合）
     gamma_url = ""
+    from ..config import HAS_GAMMA
     if HAS_GAMMA:
         if progress_callback:
             progress_callback(60, "Gamma APIでスライド生成中...")
