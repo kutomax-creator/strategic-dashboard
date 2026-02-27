@@ -1,6 +1,7 @@
 """
 Gamma API Client - Generate presentations via Gamma.app API
-Docs: https://gamma.app/docs/api
+Docs: https://developers.gamma.app/docs/getting-started
+API v1.0 (GA since 2025-11-05)
 """
 from __future__ import annotations
 
@@ -11,7 +12,7 @@ import requests
 
 from ..config import GAMMA_API_KEY
 
-_BASE_URL = "https://api.gamma.app/v1"
+_BASE_URL = "https://public-api.gamma.app/v1.0"
 _POLL_INTERVAL = 5  # seconds
 _MAX_POLL_TIME = 300  # 5 minutes
 
@@ -19,11 +20,11 @@ _MAX_POLL_TIME = 300  # 5 minutes
 @dataclass
 class GammaGeneration:
     generation_id: str = ""
-    status: str = ""  # "pending", "in_progress", "completed", "failed"
+    status: str = ""  # "pending", "completed", "failed"
     gamma_url: str = ""
-    download_url: str = ""
     error: str = ""
-    card_count: int = 0
+    credits_deducted: int = 0
+    credits_remaining: int = 0
     metadata: dict = field(default_factory=dict)
 
 
@@ -38,9 +39,8 @@ def create_presentation(
     input_text: str,
     num_cards: int = 10,
     language: str = "ja",
-    tone: str = "professional",
-    audience: str = "executive",
-    export_as: str = "pptx",
+    tone: str = "KDDI経営層向けプロフェッショナル",
+    audience: str = "KDDI CTO/CDO/事業部長クラスのエグゼクティブ",
 ) -> GammaGeneration:
     """Gamma APIで提案書生成を開始する（非同期）。
 
@@ -49,15 +49,13 @@ def create_presentation(
     input_text : str
         AIが生成した提案テキスト（スライド構成）
     num_cards : int
-        スライド枚数
+        スライド枚数 (Pro: 1-60)
     language : str
-        出力言語
+        出力言語コード
     tone : str
-        トーン（professional, casual等）
+        トーン説明（最大500文字）
     audience : str
-        対象者
-    export_as : str
-        エクスポート形式
+        対象読者の説明
 
     Returns
     -------
@@ -67,12 +65,19 @@ def create_presentation(
         return GammaGeneration(error="GAMMA_API_KEY is not configured")
 
     payload = {
-        "input_text": input_text,
-        "num_cards": num_cards,
+        "inputText": input_text,
+        "textMode": "generate",
+        "format": "presentation",
+        "numCards": num_cards,
         "language": language,
-        "tone": tone,
-        "audience": audience,
-        "export_as": export_as,
+        "textOptions": {
+            "amount": "medium",
+            "tone": tone,
+            "audience": audience,
+        },
+        "imageOptions": {
+            "source": "pictographic",
+        },
     }
 
     try:
@@ -85,8 +90,8 @@ def create_presentation(
         resp.raise_for_status()
         data = resp.json()
         return GammaGeneration(
-            generation_id=data.get("id", ""),
-            status=data.get("status", "pending"),
+            generation_id=data.get("generationId", ""),
+            status="pending",
             metadata=data,
         )
     except requests.HTTPError as e:
@@ -106,7 +111,7 @@ def poll_generation(generation_id: str) -> GammaGeneration:
     Parameters
     ----------
     generation_id : str
-        create_presentationで取得したID
+        create_presentationで取得したgenerationId
 
     Returns
     -------
@@ -123,12 +128,14 @@ def poll_generation(generation_id: str) -> GammaGeneration:
         )
         resp.raise_for_status()
         data = resp.json()
+
+        credits = data.get("credits", {})
         return GammaGeneration(
             generation_id=generation_id,
             status=data.get("status", "unknown"),
-            gamma_url=data.get("gamma_url", ""),
-            download_url=data.get("download_url", ""),
-            card_count=data.get("card_count", 0),
+            gamma_url=data.get("gammaUrl", ""),
+            credits_deducted=credits.get("deducted", 0),
+            credits_remaining=credits.get("remaining", 0),
             metadata=data,
         )
     except Exception as e:
@@ -166,7 +173,7 @@ def generate_and_wait(
         return gen
 
     if not gen.generation_id:
-        return GammaGeneration(error="No generation ID returned")
+        return GammaGeneration(error="No generationId returned")
 
     if callback:
         callback("スライド生成中...")
