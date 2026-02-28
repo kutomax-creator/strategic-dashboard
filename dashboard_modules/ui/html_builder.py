@@ -2272,12 +2272,29 @@ setInterval(function(){{
     document.getElementById('liveClock').textContent=s;
 }},1000);
 function triggerHypothesisGeneration(){{
+    // Method 1: Try direct parent navigation (works on localhost)
     try {{
         var url = new URL(window.parent.location.href);
         url.searchParams.set('hypothesis_trigger', 'auto');
         window.parent.location.href = url.toString();
+        return;
     }} catch(e) {{
-        alert('ダッシュボード外からは実行できません。Streamlitページで操作してください。');
+        // Cross-origin blocked (Streamlit Cloud)
+    }}
+    // Method 2: Open in top-level window (works on Streamlit Cloud)
+    try {{
+        var baseUrl = document.referrer || window.location.ancestorOrigins[0] || '';
+        if (baseUrl) {{
+            var sep = baseUrl.indexOf('?') >= 0 ? '&' : '?';
+            window.open(baseUrl + sep + 'hypothesis_trigger=auto', '_top');
+            return;
+        }}
+    }} catch(e2) {{}}
+    // Method 3: Fallback - use top.location
+    try {{
+        window.top.location.search = '?hypothesis_trigger=auto';
+    }} catch(e3) {{
+        alert('画面下部の ▶ GENERATE HYPOTHESIS ボタンをご利用ください。');
     }}
 }}
 function toggleStockExpand(){{
