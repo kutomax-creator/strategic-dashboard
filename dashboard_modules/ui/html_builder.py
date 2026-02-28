@@ -181,25 +181,48 @@ def build_dashboard_html(proposal_history: list | None = None) -> str:
                     <div class="opp-arrow">&#9654;</div>
                 </div>"""
 
-            # Approach plan overlay
+            # Full data for overlay tabs
+            gamma_input_full = entry.get("gamma_input", entry.get("gamma_input_preview", ""))
+            exec_critique = entry.get("executive_critique", entry.get("metadata", {}).get("executive_critique", entry.get("metadata", {}).get("executive_critique_preview", "")))
+
             safe_approach = approach.replace('`', '&#96;').replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br>')
+            safe_gamma_input = gamma_input_full.replace('`', '&#96;').replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br>') if gamma_input_full else ""
+            safe_critique = exec_critique.replace('`', '&#96;').replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br>') if exec_critique else ""
+
+            gamma_link_html = ""
+            if gamma_url:
+                gamma_link_html = f'<a href="{gamma_url}" target="_blank" style="color:#b478ff;font-size:0.5rem;letter-spacing:2px;text-decoration:underline;margin-left:12px;">&#9654; OPEN IN GAMMA</a>'
+
             overlay_panels += f"""
                 <div class="report-overlay" id="approachOverlay{i}" style="display:none;">
                     <div class="report-overlay-inner">
                         <div class="report-overlay-header">
                             <button class="report-close-btn-top" onclick="closeApproachPlan({i})">&#10005;</button>
-                            <div class="report-overlay-label">HYPOTHESIS PROPOSAL // APPROACH PLAN</div>
+                            <div class="report-overlay-label">HYPOTHESIS PROPOSAL // FULL DETAIL{gamma_link_html}</div>
                             <div class="report-overlay-title">{title}</div>
                             <div class="overlay-score-box">
                                 <span class="overlay-score-num {'overlay-score-high' if score >= 80 else 'overlay-score-mid' if score >= 50 else 'overlay-score-low'}">{score}</span>
                                 <span class="overlay-score-label">PROPOSAL QUALITY SCORE</span>
                             </div>
                         </div>
+                        <div class="overlay-tabs">
+                            <button class="overlay-tab active" onclick="switchOverlayTab({i},'slides')">PROPOSAL SLIDES</button>
+                            <button class="overlay-tab" onclick="switchOverlayTab({i},'critique')">EXECUTIVE CRITIQUE</button>
+                            <button class="overlay-tab" onclick="switchOverlayTab({i},'approach')">APPROACH PLAN</button>
+                        </div>
                         <div class="report-overlay-body">
-                            <div class="section-body" style="white-space:pre-wrap;">{safe_approach if safe_approach else '<span style="color:rgba(180,120,255,0.3);">NO APPROACH PLAN DATA</span>'}</div>
+                            <div class="overlay-tab-content active" id="overlayTab{i}_slides">
+                                <div class="section-body" style="white-space:pre-wrap;">{safe_gamma_input if safe_gamma_input else '<span style="color:rgba(180,120,255,0.3);">NO PROPOSAL SLIDES DATA</span>'}</div>
+                            </div>
+                            <div class="overlay-tab-content" id="overlayTab{i}_critique">
+                                <div class="section-body" style="white-space:pre-wrap;">{safe_critique if safe_critique else '<span style="color:rgba(180,120,255,0.3);">NO EXECUTIVE CRITIQUE DATA</span>'}</div>
+                            </div>
+                            <div class="overlay-tab-content" id="overlayTab{i}_approach">
+                                <div class="section-body" style="white-space:pre-wrap;">{safe_approach if safe_approach else '<span style="color:rgba(180,120,255,0.3);">NO APPROACH PLAN DATA</span>'}</div>
+                            </div>
                         </div>
                         <div class="report-overlay-footer">
-                            FUJITSU // ACCOUNT INTELLIGENCE DIVISION // KDDI SECTOR // END OF PLAN
+                            FUJITSU // ACCOUNT INTELLIGENCE DIVISION // KDDI SECTOR // END OF PROPOSAL
                         </div>
                     </div>
                 </div>"""
@@ -212,7 +235,7 @@ def build_dashboard_html(proposal_history: list | None = None) -> str:
             </div>
             <div class="ai-body" id="aiBody">
                 {opp_rows}
-                <div class="opp-hint">CLICK TO VIEW APPROACH PLAN</div>
+                <div class="opp-hint">CLICK TO VIEW FULL PROPOSAL</div>
             </div>
         </div>
         {overlay_panels}"""
@@ -1841,28 +1864,39 @@ html, body {{
     background: rgba(0,255,204,0.12);
     color: rgba(0,255,204,0.9);
 }}
-.hypothesis-btn {{
-    display: block;
-    width: 100%;
-    padding: 8px 0;
-    margin: 12px 0 4px;
-    background: rgba(180,120,255,0.08);
-    border: 1px solid rgba(180,120,255,0.3);
-    border-radius: 4px;
-    color: rgba(180,120,255,0.9);
-    font-family: 'Orbitron', monospace;
-    font-size: 0.5rem;
-    letter-spacing: 3px;
-    cursor: pointer;
-    text-align: center;
-    text-shadow: 0 0 8px rgba(180,120,255,0.3);
-    transition: all 0.2s;
+.overlay-tabs {{
+    display: flex;
+    border-bottom: 1px solid rgba(180,120,255,0.15);
+    margin-bottom: 16px;
+    gap: 0;
 }}
-.hypothesis-btn:hover {{
-    background: rgba(180,120,255,0.18);
-    border-color: rgba(180,120,255,0.6);
-    color: rgba(200,160,255,1);
-    text-shadow: 0 0 12px rgba(180,120,255,0.5);
+.overlay-tab {{
+    font-family: 'Orbitron', monospace;
+    font-size: 0.45rem;
+    letter-spacing: 2px;
+    color: rgba(180,120,255,0.4);
+    padding: 8px 16px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+}}
+.overlay-tab:hover {{
+    color: rgba(180,120,255,0.7);
+}}
+.overlay-tab.active {{
+    color: #00ffcc;
+    border-bottom: 2px solid #00ffcc;
+}}
+.overlay-tab-content {{
+    font-family: 'Share Tech Mono', monospace;
+    display: none;
+}}
+.overlay-tab-content.active {{
+    display: block;
 }}
 .stock-label {{
     font-size: 0.75rem; color: #00ffcc;
@@ -2217,7 +2251,6 @@ html, body {{
             <div style="margin-top:12px;font-size:0.6rem;color:rgba(0,255,204,0.55);letter-spacing:2px;">
                 <span class="pulse-dot"></span>LIVE FEED // TYO-JPX
             </div>
-            <button class="hypothesis-btn" onclick="triggerHypothesisGeneration()">&#9654; GENERATE HYPOTHESIS</button>
         </div>
     </div>
 
@@ -2271,32 +2304,6 @@ setInterval(function(){{
     var s=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' ('+days[d.getDay()]+') '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');
     document.getElementById('liveClock').textContent=s;
 }},1000);
-function triggerHypothesisGeneration(){{
-    // Method 1: Try direct parent navigation (works on localhost)
-    try {{
-        var url = new URL(window.parent.location.href);
-        url.searchParams.set('hypothesis_trigger', 'auto');
-        window.parent.location.href = url.toString();
-        return;
-    }} catch(e) {{
-        // Cross-origin blocked (Streamlit Cloud)
-    }}
-    // Method 2: Open in top-level window (works on Streamlit Cloud)
-    try {{
-        var baseUrl = document.referrer || window.location.ancestorOrigins[0] || '';
-        if (baseUrl) {{
-            var sep = baseUrl.indexOf('?') >= 0 ? '&' : '?';
-            window.open(baseUrl + sep + 'hypothesis_trigger=auto', '_top');
-            return;
-        }}
-    }} catch(e2) {{}}
-    // Method 3: Fallback - use top.location
-    try {{
-        window.top.location.search = '?hypothesis_trigger=auto';
-    }} catch(e3) {{
-        alert('画面下部の ▶ GENERATE HYPOTHESIS ボタンをご利用ください。');
-    }}
-}}
 function toggleStockExpand(){{
     var sec = document.getElementById('stockSecondary');
     var btn = document.getElementById('stockToggleBtn');
@@ -2359,6 +2366,20 @@ function showApproachPlan(idx){{
 }}
 function closeApproachPlan(idx){{
     document.getElementById('approachOverlay'+idx).style.display='none';
+}}
+function switchOverlayTab(overlayIdx, tabName){{
+    var tabs = document.querySelectorAll('#approachOverlay'+overlayIdx+' .overlay-tab');
+    var contents = document.querySelectorAll('#approachOverlay'+overlayIdx+' .overlay-tab-content');
+    tabs.forEach(function(t){{ t.classList.remove('active'); }});
+    contents.forEach(function(c){{ c.classList.remove('active'); }});
+    var names = ['slides','critique','approach'];
+    for(var i=0;i<tabs.length;i++){{
+        if(names[i]===tabName){{
+            tabs[i].classList.add('active');
+        }}
+    }}
+    var el = document.getElementById('overlayTab'+overlayIdx+'_'+tabName);
+    if(el) el.classList.add('active');
 }}
 function addToAsana(idx, title, uvance, score){{
     // 上下両方のボタンを更新

@@ -171,17 +171,31 @@ def render():
 
     # 提案履歴を取得してiframe内に表示
     recent_proposals = get_generation_history()[-5:]
-    # proposal_historyからapproach_planがない古いデータも補完
+    # proposal_historyからapproach_plan/gamma_input_preview/executive_critiqueを補完
     prop_hist = get_proposal_history()[-5:]
-    # generation_history と proposal_history をマージ（approach_plan補完）
     for rp in recent_proposals:
-        if not rp.get("approach_plan"):
-            for ph in prop_hist:
-                if ph.get("opportunity_title") == rp.get("opportunity_title"):
+        for ph in prop_hist:
+            if ph.get("opportunity_title") == rp.get("opportunity_title"):
+                if not rp.get("approach_plan"):
                     rp["approach_plan"] = ph.get("approach_plan", "")
-                    if not rp.get("score") and ph.get("score"):
-                        rp["score"] = ph["score"]
-                    break
+                if not rp.get("score") and ph.get("score"):
+                    rp["score"] = ph["score"]
+                if not rp.get("gamma_input_preview"):
+                    rp["gamma_input_preview"] = ph.get("gamma_input_preview", "")
+                ph_meta = ph.get("metadata", {})
+                if not rp.get("executive_critique"):
+                    rp["executive_critique"] = ph_meta.get("executive_critique_preview", "")
+                break
+
+    # session_stateにhypothesis_resultがある場合、最新エントリにfullデータ注入
+    hypo_result = st.session_state.get("hypothesis_result")
+    if hypo_result and recent_proposals:
+        latest = recent_proposals[-1]
+        if latest.get("opportunity_title") == hypo_result.get("opportunity_title"):
+            latest["gamma_input"] = hypo_result.get("gamma_input", "")
+            latest["executive_critique"] = hypo_result.get("metadata", {}).get("executive_critique", "")
+            if not latest.get("approach_plan"):
+                latest["approach_plan"] = hypo_result.get("approach_plan", "")
 
     html = build_dashboard_html(proposal_history=recent_proposals)
     components.html(html, height=860, scrolling=True)
@@ -397,17 +411,6 @@ def render():
                 f'<a href="{result["gamma_url"]}" target="_blank">Gamma Presentation Link</a></div>',
                 unsafe_allow_html=True,
             )
-
-        with st.expander("Proposal Slides (Text)", expanded=False):
-            st.markdown(result.get("gamma_input", ""), unsafe_allow_html=False)
-
-        with st.expander("Approach Plan", expanded=False):
-            st.markdown(result.get("approach_plan", ""), unsafe_allow_html=False)
-
-        critique_text = result.get("metadata", {}).get("executive_critique", "")
-        if critique_text:
-            with st.expander("Executive Critique (批評)", expanded=False):
-                st.markdown(critique_text, unsafe_allow_html=False)
 
         meta = result.get("metadata", {})
         if meta:

@@ -82,7 +82,7 @@ def create_presentation(
         "textMode": "generate",
         "format": "presentation",
         "numCards": num_cards,
-        "themeId": "oep26np9auq6q8y",
+        "themeId": "4ykmbx7j0r3xblp",
         "textOptions": {
             "amount": "medium",
             "tone": tone,
@@ -90,7 +90,7 @@ def create_presentation(
             "language": language,
         },
         "imageOptions": {
-            "source": "pictographic",
+            "source": "ai",
         },
     }
 
