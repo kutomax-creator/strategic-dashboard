@@ -144,7 +144,6 @@ def run_weekly_generation(
         try:
             gamma_result = generate_and_wait(
                 proposal["gamma_input"],
-                num_cards=10,
                 callback=lambda msg: progress_callback(70, msg) if progress_callback else None,
             )
             if gamma_result.gamma_url:
@@ -248,7 +247,6 @@ def run_manual_generation(
         try:
             gamma_result = gamma_gen(
                 proposal["gamma_input"],
-                num_cards=10,
                 callback=lambda msg: progress_callback(70, msg) if progress_callback else None,
             )
             if gamma_result.gamma_url:
@@ -345,6 +343,8 @@ def _save_generation_result(result: WeeklyResult) -> None:
         "gamma_url": result.gamma_url,
         "success": result.success,
         "approach_plan": result.approach_plan,
+        "gamma_input": result.gamma_input,
+        "executive_critique": result.metadata.get("executive_critique", ""),
         "score": _compute_display_score(result.metadata),
     })
     schedule["history"] = history[-20:]  # 最大20件

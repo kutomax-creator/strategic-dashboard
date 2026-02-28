@@ -541,20 +541,18 @@ def _save_proposal_history(result: dict) -> None:
         if _PROPOSAL_HISTORY_FILE.exists():
             history = json.loads(_PROPOSAL_HISTORY_FILE.read_text(encoding="utf-8"))
 
-        # 履歴エントリ（テキスト全文は除外し軽量に）
+        # 履歴エントリ（全文保存 — overlayタブで全文表示するため）
         meta = result["metadata"]
-        # 批評全文は重いのでプレビューのみ保存
         lightweight_meta = {k: v for k, v in meta.items() if k != "executive_critique"}
-        critique_text = meta.get("executive_critique", "")
-        if critique_text:
-            lightweight_meta["executive_critique_preview"] = critique_text[:500]
         lightweight_meta["refinement_applied"] = meta.get("refinement_applied", False)
 
         entry = {
             "opportunity_title": result["opportunity_title"],
             "generated_at": result["generated_at"],
             "metadata": lightweight_meta,
+            "gamma_input": result["gamma_input"],
             "gamma_input_preview": result["gamma_input"][:300],
+            "executive_critique": meta.get("executive_critique", ""),
             "approach_plan": result.get("approach_plan", ""),
             "score": _compute_proposal_score(result.get("metadata", {})),
         }

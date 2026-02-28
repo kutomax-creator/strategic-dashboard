@@ -1894,9 +1894,22 @@ html, body {{
 .overlay-tab-content {{
     font-family: 'Share Tech Mono', monospace;
     display: none;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: 8px;
 }}
 .overlay-tab-content.active {{
     display: block;
+}}
+.overlay-tab-content::-webkit-scrollbar {{
+    width: 4px;
+}}
+.overlay-tab-content::-webkit-scrollbar-track {{
+    background: rgba(180,120,255,0.05);
+}}
+.overlay-tab-content::-webkit-scrollbar-thumb {{
+    background: rgba(180,120,255,0.2);
+    border-radius: 2px;
 }}
 .stock-label {{
     font-size: 0.75rem; color: #00ffcc;

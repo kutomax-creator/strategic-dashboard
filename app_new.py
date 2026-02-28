@@ -171,7 +171,7 @@ def render():
 
     # 提案履歴を取得してiframe内に表示
     recent_proposals = get_generation_history()[-5:]
-    # proposal_historyからapproach_plan/gamma_input_preview/executive_critiqueを補完
+    # proposal_historyからapproach_plan/gamma_input/executive_critiqueを補完
     prop_hist = get_proposal_history()[-5:]
     for rp in recent_proposals:
         for ph in prop_hist:
@@ -180,11 +180,12 @@ def render():
                     rp["approach_plan"] = ph.get("approach_plan", "")
                 if not rp.get("score") and ph.get("score"):
                     rp["score"] = ph["score"]
-                if not rp.get("gamma_input_preview"):
-                    rp["gamma_input_preview"] = ph.get("gamma_input_preview", "")
-                ph_meta = ph.get("metadata", {})
+                # gamma_input全文を優先、なければpreview
+                if not rp.get("gamma_input"):
+                    rp["gamma_input"] = ph.get("gamma_input", ph.get("gamma_input_preview", ""))
+                # executive_critique全文
                 if not rp.get("executive_critique"):
-                    rp["executive_critique"] = ph_meta.get("executive_critique_preview", "")
+                    rp["executive_critique"] = ph.get("executive_critique", ph.get("metadata", {}).get("executive_critique_preview", ""))
                 break
 
     # session_stateにhypothesis_resultがある場合、最新エントリにfullデータ注入
