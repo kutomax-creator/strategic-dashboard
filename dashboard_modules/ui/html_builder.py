@@ -2,8 +2,6 @@
 HTML Dashboard Builder - Generates the main dashboard HTML
 """
 import base64
-from pathlib import Path
-import streamlit as st
 from datetime import datetime
 from ..config import APP_ROOT
 from ..components.stock import fetch_stock, build_svg_chart
@@ -13,8 +11,6 @@ from ..components.weather import fetch_tokyo_weather
 from ..components.context import get_active_context_data
 from ..components.intelligence import fetch_bu_intelligence, WAKONX_KEYWORDS, BX_KEYWORDS
 from ..analysis.insights import run_insight_matcher, check_alerts
-from ..analysis.opportunities import generate_opportunities
-from ..analysis.weekly_scheduler import days_since_last_generation
 
 
 def _load_image_b64(filename: str) -> str:
@@ -29,23 +25,7 @@ def _load_image_b64(filename: str) -> str:
         return ""
 
 
-def _build_weekly_badge() -> tuple[str, bool]:
-    """HUDヘッダー用の週次生成ステータスバッジを構築。
-
-    Returns (badge_text, is_due)
-    """
-    days = days_since_last_generation()
-    if days is None:
-        return "WEEKLY GEN: NEVER", True
-    elif days >= 7:
-        return f"WEEKLY GEN: {days}D AGO ⚠", True
-    else:
-        return f"WEEKLY GEN: {days}D AGO", False
-
-
-def build_dashboard_html() -> str:
-    # Weekly badge
-    _weekly_text, _weekly_due = _build_weekly_badge()
+def build_dashboard_html(proposal_history: list | None = None) -> str:
 
     # Load boot splash image as base64
     boot_splash_img = _load_image_b64("opening.png")
@@ -110,11 +90,16 @@ def build_dashboard_html() -> str:
     if ctc_pct is not None and abs(ctc_pct) >= threshold:
         ctc_alert = "急騰" if ctc_pct > 0 else "急落"
 
-    stock_html = stock_block("KDDI", "9433.T", kddi_price, kddi_diff, kddi_pct, kddi_dates, kddi_closes, "#00ffcc", "KDDI+%E6%A0%AA%E4%BE%A1", kddi_alert)
-    stock_html += stock_block("FUJITSU", "6702.T", fujitsu_price, fujitsu_diff, fujitsu_pct, fujitsu_dates, fujitsu_closes, "#00aaff", "%E5%AF%8C%E5%A3%AB%E9%80%9A+%E6%A0%AA%E4%BE%A1", fujitsu_alert)
-    stock_html += stock_block("SoftBank", "9434.T", softbank_price, softbank_diff, softbank_pct, softbank_dates, softbank_closes, "#ffaa00", "%E3%82%BD%E3%83%95%E3%83%88%E3%83%90%E3%83%B3%E3%82%AF+%E6%A0%AA%E4%BE%A1", softbank_alert)
-    stock_html += stock_block("NTT docomo", "9437.T", docomo_price, docomo_diff, docomo_pct, docomo_dates, docomo_closes, "#ff6699", "NTT%E3%83%89%E3%82%B3%E3%83%A2+%E6%A0%AA%E4%BE%A1", docomo_alert)
-    stock_html += stock_block("CTC", "4739.T", ctc_price, ctc_diff, ctc_pct, ctc_dates, ctc_closes, "#9966ff", "CTC+%E6%A0%AA%E4%BE%A1", ctc_alert)
+    # Primary stocks (always visible)
+    stock_primary = stock_block("KDDI", "9433.T", kddi_price, kddi_diff, kddi_pct, kddi_dates, kddi_closes, "#00ffcc", "KDDI+%E6%A0%AA%E4%BE%A1", kddi_alert)
+    stock_primary += stock_block("FUJITSU", "6702.T", fujitsu_price, fujitsu_diff, fujitsu_pct, fujitsu_dates, fujitsu_closes, "#00aaff", "%E5%AF%8C%E5%A3%AB%E9%80%9A+%E6%A0%AA%E4%BE%A1", fujitsu_alert)
+    # Secondary stocks (collapsed by default)
+    stock_secondary = stock_block("SoftBank", "9434.T", softbank_price, softbank_diff, softbank_pct, softbank_dates, softbank_closes, "#ffaa00", "%E3%82%BD%E3%83%95%E3%83%88%E3%83%90%E3%83%B3%E3%82%AF+%E6%A0%AA%E4%BE%A1", softbank_alert)
+    stock_secondary += stock_block("NTT docomo", "9437.T", docomo_price, docomo_diff, docomo_pct, docomo_dates, docomo_closes, "#ff6699", "NTT%E3%83%89%E3%82%B3%E3%83%A2+%E6%A0%AA%E4%BE%A1", docomo_alert)
+    stock_secondary += stock_block("CTC", "4739.T", ctc_price, ctc_diff, ctc_pct, ctc_dates, ctc_closes, "#9966ff", "CTC+%E6%A0%AA%E4%BE%A1", ctc_alert)
+    stock_html = f"""{stock_primary}
+    <div class="stock-secondary collapsed" id="stockSecondary">{stock_secondary}</div>
+    <button class="stock-toggle-btn" id="stockToggleBtn" onclick="toggleStockExpand()">SHOW ALL (5)</button>"""
 
     # News for right panel
     news_all = fetch_news_for("KDDI+%E5%AF%8C%E5%A3%AB%E9%80%9A+%E9%80%9A%E4%BF%A1", 5)
@@ -160,134 +145,74 @@ def build_dashboard_html() -> str:
     wakonx_intel = fetch_bu_intelligence("WAKONX", WAKONX_KEYWORDS)
     bx_intel = fetch_bu_intelligence("BX", BX_KEYWORDS)
 
-    # AI Strategic Opportunities - WAKONX/BX重点でオポチュニティ抽出
-    # WAKONX/BX特化ニュースを優先的に含める
-    wakonx_articles = wakonx_intel["articles"][:5]
-    bx_articles = bx_intel["articles"][:5]
-    # 一般KDDIニュースも少し含める
-    kddi_general = fetch_news_for("KDDI", 3)
-
-    # WAKONX/BXを重視した統合リスト
-    kddi_combined = wakonx_articles + bx_articles + kddi_general
-    fujitsu_news_raw = fetch_news_for("%E5%AF%8C%E5%A3%AB%E9%80%9A+Uvance+OR+%E5%AF%8C%E5%A3%AB%E9%80%9A+DX+OR+%E5%AF%8C%E5%A3%AB%E9%80%9A+%E5%85%B1%E5%89%B5", 8)
-
-    kddi_tuple = tuple(a["title"] for a in kddi_combined)
-    fujitsu_tuple = tuple(a["title"] for a in fujitsu_news_raw)
-    # プレスリリースデータをtuple化してオポチュニティ生成に渡す
-    kddi_press_tuple = tuple(
-        f"{pr['title']} — {pr.get('description', '')}" if pr.get("description") else pr["title"]
-        for pr in press_releases
-    )
-    fujitsu_press_tuple = tuple(pr["title"] for pr in fujitsu_releases)
-    # レポート生成済みかどうかはsession_stateで管理
-    reports_ready = st.session_state.get("reports_ready", False)
-    report_data_cache = st.session_state.get("report_data_cache", {})
-    # レポート生成済みの場合、生成時と同じオポチュニティを使用（ニュースソース差異による不一致を防止）
-    if reports_ready and "generated_opportunities" in st.session_state:
-        opportunities = st.session_state["generated_opportunities"]
-    else:
-        opportunities = generate_opportunities(kddi_tuple, fujitsu_tuple, kddi_press_tuple, fujitsu_press_tuple)
-
-    if opportunities:
+    # ─── PROPOSAL GENERATION HISTORY (中央パネル) ─────────────────────
+    _proposals = proposal_history or []
+    if _proposals:
         opp_rows = ""
         overlay_panels = ""
-        # スコア順にソートして上位3件のみ表示
-        top_opportunities = sorted(opportunities, key=lambda x: x.get("score", 0), reverse=True)[:3]
-        for i, opp in enumerate(top_opportunities):
-            score = int(opp.get("score", 0))
-            title = opp.get("title", "Unknown")
-            uvance = opp.get("uvance_area", "")
-            score_reason = opp.get("score_reason", "")
-            if score >= 90:
+        for i, entry in enumerate(reversed(_proposals)):
+            score = int(entry.get("score", 0))
+            title = entry.get("opportunity_title", "Unknown")[:60]
+            date_str = entry.get("generated_at", "")[:10]
+            approach = entry.get("approach_plan", "")
+            gamma_url = entry.get("gamma_url", "")
+            if score >= 80:
                 score_cls = "opp-score-high"
-            elif score >= 60:
+            elif score >= 50:
                 score_cls = "opp-score-mid"
             else:
                 score_cls = "opp-score-low"
 
-            if reports_ready and title in report_data_cache:
-                # レポート生成済み: クリックで開ける
-                opp_rows += f"""
-                <div class="opp-row" onclick="showReport({i})">
+            # Gamma link badge
+            gamma_badge = ""
+            if gamma_url:
+                gamma_badge = f' <a href="{gamma_url}" target="_blank" style="color:#b478ff;font-size:0.5rem;text-decoration:underline;margin-left:6px;">GAMMA</a>'
+
+            opp_rows += f"""
+                <div class="opp-row" onclick="showApproachPlan({i})">
                     <div class="opp-score-wrap">
                         <div class="opp-score-label">SCORE</div>
                         <div class="opp-score {score_cls}">{score}</div>
                     </div>
                     <div class="opp-info">
-                        <div class="opp-title">{title}</div>
-                        <div class="opp-uvance">{uvance}</div>
+                        <div class="opp-title">{title}{gamma_badge}</div>
+                        <div class="opp-uvance">{date_str}</div>
                     </div>
                     <div class="opp-arrow">&#9654;</div>
                 </div>"""
-                rd = report_data_cache[title]
-                if score >= 90:
-                    overlay_score_cls = "overlay-score-high"
-                elif score >= 60:
-                    overlay_score_cls = "overlay-score-mid"
-                else:
-                    overlay_score_cls = "overlay-score-low"
-                overlay_panels += f"""
-                <div class="report-overlay" id="reportOverlay{i}" style="display:none;">
+
+            # Approach plan overlay
+            safe_approach = approach.replace('`', '&#96;').replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br>')
+            overlay_panels += f"""
+                <div class="report-overlay" id="approachOverlay{i}" style="display:none;">
                     <div class="report-overlay-inner">
                         <div class="report-overlay-header">
-                            <button class="report-close-btn-top" onclick="closeReport({i})">&#10005;</button>
-                            <div class="report-overlay-label">FUJITSU // STRATEGIC INTELLIGENCE REPORT</div>
-                            <div class="report-overlay-title">{rd['title']}</div>
+                            <button class="report-close-btn-top" onclick="closeApproachPlan({i})">&#10005;</button>
+                            <div class="report-overlay-label">HYPOTHESIS PROPOSAL // APPROACH PLAN</div>
+                            <div class="report-overlay-title">{title}</div>
                             <div class="overlay-score-box">
-                                <span class="overlay-score-num {overlay_score_cls}">{score}</span>
-                                <span class="overlay-score-label">AI RECOMMENDATION SCORE</span>
-                                <span class="overlay-score-reason">{score_reason}</span>
-                            </div>
-                            <div class="report-overlay-actions">
-                                <button class="asana-btn" id="asanaBtnTop{i}" onclick="addToAsana({i}, '{title.replace(chr(39), "")}', '{uvance}', {score})">&#9745; ADD TO ASANA</button>
-                                <button class="proposal-btn" id="proposalBtnTop{i}" onclick="generateProposal({i}, '{title.replace(chr(39), "")}')">&#128221; CREATE PROPOSAL</button>
-                                <button class="gemini-btn" id="geminiBtnTop{i}" onclick="sendToGemini({i})">&#128257; SEND TO GEMINI</button>
-                                <button class="save-btn" onclick="saveReport({i}, '{title.replace(chr(39), "")}')">&#128190; SAVE REPORT</button>
+                                <span class="overlay-score-num {'overlay-score-high' if score >= 80 else 'overlay-score-mid' if score >= 50 else 'overlay-score-low'}">{score}</span>
+                                <span class="overlay-score-label">PROPOSAL QUALITY SCORE</span>
                             </div>
                         </div>
                         <div class="report-overlay-body">
-                            {rd['sections_html']}
-                        </div>
-                        <div class="report-overlay-actions">
-                            <button class="asana-btn" id="asanaBtn{i}" onclick="addToAsana({i}, '{title.replace(chr(39), "")}', '{uvance}', {score})">&#9745; ADD TO ASANA</button>
-                            <button class="proposal-btn" id="proposalBtn{i}" onclick="generateProposal({i}, '{title.replace(chr(39), "")}')">&#128221; CREATE PROPOSAL</button>
-                            <button class="gemini-btn" id="geminiBtn{i}" onclick="sendToGemini({i})">&#128257; SEND TO GEMINI</button>
-                            <button class="save-btn" onclick="saveReport({i}, '{title.replace(chr(39), "")}')">&#128190; SAVE REPORT</button>
+                            <div class="section-body" style="white-space:pre-wrap;">{safe_approach if safe_approach else '<span style="color:rgba(180,120,255,0.3);">NO APPROACH PLAN DATA</span>'}</div>
                         </div>
                         <div class="report-overlay-footer">
-                            FUJITSU // ACCOUNT INTELLIGENCE DIVISION // KDDI SECTOR // END OF REPORT
+                            FUJITSU // ACCOUNT INTELLIGENCE DIVISION // KDDI SECTOR // END OF PLAN
                         </div>
                     </div>
                 </div>"""
-            else:
-                # レポート未生成: クリック不可
-                opp_rows += f"""
-                <div class="opp-row opp-row-pending">
-                    <div class="opp-score-wrap">
-                        <div class="opp-score-label">SCORE</div>
-                        <div class="opp-score {score_cls}">{score}</div>
-                    </div>
-                    <div class="opp-info">
-                        <div class="opp-title">{title}</div>
-                        <div class="opp-uvance">{uvance}</div>
-                    </div>
-                    <div class="opp-arrow" style="opacity:0.2;">&#9654;</div>
-                </div>"""
-
-        if reports_ready:
-            generate_hint = '<div class="opp-hint">CLICK TO OPEN DETAILED REPORT</div>'
-        else:
-            generate_hint = '<div class="opp-hint" style="color:rgba(180,120,255,0.3);">&#9660; GENERATE REPORTS BELOW &#9660;</div>'
 
         ai_html = f"""
         <div class="ai-panel" id="aiPanel">
             <div class="ai-title" onclick="toggleAiPanel()">
-                AI STRATEGIC OPPORTUNITIES
+                PROPOSAL GENERATION HISTORY
                 <span class="ai-toggle" id="aiToggle">&#9654;</span>
             </div>
             <div class="ai-body" id="aiBody">
                 {opp_rows}
-                {generate_hint}
+                <div class="opp-hint">CLICK TO VIEW APPROACH PLAN</div>
             </div>
         </div>
         {overlay_panels}"""
@@ -295,11 +220,11 @@ def build_dashboard_html() -> str:
         ai_html = """
         <div class="ai-panel" id="aiPanel">
             <div class="ai-title" onclick="toggleAiPanel()">
-                AI STRATEGIC OPPORTUNITIES
+                PROPOSAL GENERATION HISTORY
                 <span class="ai-toggle" id="aiToggle">&#9654;</span>
             </div>
             <div class="ai-body" id="aiBody">
-                <div class="ai-line" style="color:rgba(180,120,255,0.25);">ANTHROPIC_API_KEY を設定すると有効化されます</div>
+                <div class="ai-line" style="color:rgba(180,120,255,0.25);">NO PROPOSALS YET &#8212; USE GENERATE HYPOTHESIS</div>
             </div>
         </div>"""
 
@@ -731,27 +656,6 @@ html, body {{
     font-size: 0.9rem; font-weight: 900;
     letter-spacing: 8px; color: rgba(0,255,204,0.95);
     text-shadow: 0 0 16px rgba(0,255,204,0.4);
-}}
-.hud-weekly-badge {{
-    position: absolute; left: 2%;
-    font-family: 'Orbitron', monospace;
-    font-size: 0.4rem;
-    letter-spacing: 2px;
-    padding: 2px 8px;
-    border-radius: 3px;
-    border: 1px solid rgba(180,120,255,0.3);
-    background: rgba(180,120,255,0.08);
-    color: rgba(180,120,255,0.8);
-    text-shadow: 0 0 6px rgba(180,120,255,0.3);
-}}
-.hud-weekly-badge.due {{
-    border-color: rgba(255,170,0,0.5);
-    color: rgba(255,170,0,0.9);
-    animation: pulse-badge 2s infinite;
-}}
-@keyframes pulse-badge {{
-    0%, 100% {{ opacity: 1; }}
-    50% {{ opacity: 0.5; }}
 }}
 .hud-clock {{
     position: absolute; right: 2%;
@@ -1908,6 +1812,58 @@ html, body {{
     border-bottom: 1px solid rgba(0,255,204,0.06);
 }}
 .stock-section:last-child {{ border-bottom: none; }}
+.stock-secondary {{
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    max-height: 2000px;
+    opacity: 1;
+}}
+.stock-secondary.collapsed {{
+    max-height: 0;
+    opacity: 0;
+}}
+.stock-toggle-btn {{
+    display: block;
+    width: 100%;
+    padding: 4px 0;
+    margin: 4px 0 8px;
+    background: rgba(0,255,204,0.06);
+    border: 1px solid rgba(0,255,204,0.15);
+    border-radius: 3px;
+    color: rgba(0,255,204,0.6);
+    font-family: 'Orbitron', monospace;
+    font-size: 0.45rem;
+    letter-spacing: 2px;
+    cursor: pointer;
+    text-align: center;
+}}
+.stock-toggle-btn:hover {{
+    background: rgba(0,255,204,0.12);
+    color: rgba(0,255,204,0.9);
+}}
+.hypothesis-btn {{
+    display: block;
+    width: 100%;
+    padding: 8px 0;
+    margin: 12px 0 4px;
+    background: rgba(180,120,255,0.08);
+    border: 1px solid rgba(180,120,255,0.3);
+    border-radius: 4px;
+    color: rgba(180,120,255,0.9);
+    font-family: 'Orbitron', monospace;
+    font-size: 0.5rem;
+    letter-spacing: 3px;
+    cursor: pointer;
+    text-align: center;
+    text-shadow: 0 0 8px rgba(180,120,255,0.3);
+    transition: all 0.2s;
+}}
+.hypothesis-btn:hover {{
+    background: rgba(180,120,255,0.18);
+    border-color: rgba(180,120,255,0.6);
+    color: rgba(200,160,255,1);
+    text-shadow: 0 0 12px rgba(180,120,255,0.5);
+}}
 .stock-label {{
     font-size: 0.75rem; color: #00ffcc;
     letter-spacing: 2px; margin-bottom: 2px;
@@ -2239,7 +2195,6 @@ html, body {{
     <div class="hud-header">
         {header_frame}
         <div class="hud-status" onclick="returnToBootScreen()" style="cursor:pointer;"><span class="pulse-dot"></span>SYSTEM ONLINE</div>
-        <div class="hud-weekly-badge{' due' if _weekly_due else ''}">{_weekly_text}</div>
         <div class="hud-clock" id="liveClock">{now}</div>
     </div>
 
@@ -2262,6 +2217,7 @@ html, body {{
             <div style="margin-top:12px;font-size:0.6rem;color:rgba(0,255,204,0.55);letter-spacing:2px;">
                 <span class="pulse-dot"></span>LIVE FEED // TYO-JPX
             </div>
+            <button class="hypothesis-btn" onclick="triggerHypothesisGeneration()">&#9654; GENERATE HYPOTHESIS</button>
         </div>
     </div>
 
@@ -2315,6 +2271,23 @@ setInterval(function(){{
     var s=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' ('+days[d.getDay()]+') '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');
     document.getElementById('liveClock').textContent=s;
 }},1000);
+function triggerHypothesisGeneration(){{
+    try {{
+        var url = new URL(window.parent.location.href);
+        url.searchParams.set('hypothesis_trigger', 'auto');
+        window.parent.location.href = url.toString();
+    }} catch(e) {{
+        alert('ダッシュボード外からは実行できません。Streamlitページで操作してください。');
+    }}
+}}
+function toggleStockExpand(){{
+    var sec = document.getElementById('stockSecondary');
+    var btn = document.getElementById('stockToggleBtn');
+    if (sec && btn) {{
+        sec.classList.toggle('collapsed');
+        btn.textContent = sec.classList.contains('collapsed') ? 'SHOW ALL (5)' : 'SHOW LESS (2)';
+    }}
+}}
 function toggleAiPanel(){{
     var body = document.getElementById('aiBody');
     var toggle = document.getElementById('aiToggle');
@@ -2363,6 +2336,12 @@ function showReport(idx){{
 }}
 function closeReport(idx){{
     document.getElementById('reportOverlay'+idx).style.display='none';
+}}
+function showApproachPlan(idx){{
+    document.getElementById('approachOverlay'+idx).style.display='flex';
+}}
+function closeApproachPlan(idx){{
+    document.getElementById('approachOverlay'+idx).style.display='none';
 }}
 function addToAsana(idx, title, uvance, score){{
     // 上下両方のボタンを更新

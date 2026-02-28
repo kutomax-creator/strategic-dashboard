@@ -82,6 +82,7 @@ def create_presentation(
         "textMode": "generate",
         "format": "presentation",
         "numCards": num_cards,
+        "themeId": "oep26np9auq6q8y",
         "textOptions": {
             "amount": "medium",
             "tone": tone,
