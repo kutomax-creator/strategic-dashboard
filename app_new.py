@@ -249,15 +249,20 @@ def render():
     # ─── 週次自動チェック（通知バッジ非表示） ─────────────────────
     # is_generation_due() のチェックは維持するが、UIへの表示は省略
 
-    # ボタン配置（GENERATE HYPOTHESIS はiframe内に移動済み）
+    # ボタン配置
     if not reports_ready:
-        # レポート未生成時：2ボタン表示
-        col1, col2 = st.columns([1, 1])
+        # レポート未生成時：3ボタン表示
+        col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
             generate_button = st.button("▶ GENERATE REPORTS")
         with col2:
+            hypothesis_button = st.button("▶ GENERATE HYPOTHESIS", key="hypo_btn_main")
+        with col3:
             if st.button("▶ STRATEGY CHAT", key="open_chat_dialog"):
                 st.session_state.show_chat_dialog = True
+
+        if hypothesis_button:
+            _run_hypothesis_generation()
 
         if generate_button:
             # キャッシュクリア（前回のエラー結果が残っている場合に対応）
@@ -304,9 +309,14 @@ def render():
             time.sleep(0.5)
             st.rerun()
     else:
-        # レポート生成後：チャットボタンのみ表示
-        if st.button("▶ STRATEGY CHAT", key="open_chat_dialog_after"):
-            st.session_state.show_chat_dialog = True
+        # レポート生成後：HYPOTHESIS + チャットボタン表示
+        col_h, col_c = st.columns([1, 1])
+        with col_h:
+            if st.button("▶ GENERATE HYPOTHESIS", key="hypo_btn_after"):
+                _run_hypothesis_generation()
+        with col_c:
+            if st.button("▶ STRATEGY CHAT", key="open_chat_dialog_after"):
+                st.session_state.show_chat_dialog = True
 
     # ─── Strategy Chat Dialog ────────────────────────────────────
     if "show_chat_dialog" not in st.session_state:
