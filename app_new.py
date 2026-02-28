@@ -169,7 +169,21 @@ def render():
         _run_hypothesis_generation()
         st.session_state["_hypo_running"] = False
 
-    html = build_dashboard_html()
+    # 提案履歴を取得してiframe内に表示
+    recent_proposals = get_generation_history()[-5:]
+    # proposal_historyからapproach_planがない古いデータも補完
+    prop_hist = get_proposal_history()[-5:]
+    # generation_history と proposal_history をマージ（approach_plan補完）
+    for rp in recent_proposals:
+        if not rp.get("approach_plan"):
+            for ph in prop_hist:
+                if ph.get("opportunity_title") == rp.get("opportunity_title"):
+                    rp["approach_plan"] = ph.get("approach_plan", "")
+                    if not rp.get("score") and ph.get("score"):
+                        rp["score"] = ph["score"]
+                    break
+
+    html = build_dashboard_html(proposal_history=recent_proposals)
     components.html(html, height=860, scrolling=True)
 
     # チャット状態初期化（常に実行）
@@ -232,30 +246,16 @@ def render():
             div.stProgress { margin: 10px auto !important; max-width: 400px; }
     </style>""", unsafe_allow_html=True)
 
-    # ─── 週次自動チェック ───────────────────────────────────────
-    if is_generation_due():
-        days = days_since_last_generation()
-        if days is None:
-            notice_text = "HYPOTHESIS PROPOSAL: 未生成 — 初回生成を推奨"
-        else:
-            notice_text = f"HYPOTHESIS PROPOSAL: 前回から{days}日経過 — 更新を推奨"
-        st.markdown(
-            f'<div style="text-align:center;padding:4px 0;font-size:0.55rem;'
-            f'font-family:\'Orbitron\',monospace;letter-spacing:2px;'
-            f'color:rgba(255,170,0,0.8);text-shadow:0 0 6px rgba(255,170,0,0.3);">'
-            f'{notice_text}</div>',
-            unsafe_allow_html=True,
-        )
+    # ─── 週次自動チェック（通知バッジ非表示） ─────────────────────
+    # is_generation_due() のチェックは維持するが、UIへの表示は省略
 
-    # ボタン配置
+    # ボタン配置（GENERATE HYPOTHESIS はiframe内に移動済み）
     if not reports_ready:
-        # レポート未生成時：3ボタン表示
-        col1, col2, col3 = st.columns([1, 1, 1])
+        # レポート未生成時：2ボタン表示
+        col1, col2 = st.columns([1, 1])
         with col1:
             generate_button = st.button("▶ GENERATE REPORTS")
         with col2:
-            hypothesis_button = st.button("▶ GENERATE HYPOTHESIS", key="gen_hypo_pre")
-        with col3:
             if st.button("▶ STRATEGY CHAT", key="open_chat_dialog"):
                 st.session_state.show_chat_dialog = True
 
@@ -303,18 +303,10 @@ def render():
             _save_reports(report_data_cache, opportunities)
             time.sleep(0.5)
             st.rerun()
-
-        if hypothesis_button:
-            _run_hypothesis_generation()
     else:
-        # レポート生成後：仮説ボタン＋チャットボタン表示
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            if st.button("▶ GENERATE HYPOTHESIS", key="gen_hypo_post"):
-                _run_hypothesis_generation()
-        with col2:
-            if st.button("▶ STRATEGY CHAT", key="open_chat_dialog_after"):
-                st.session_state.show_chat_dialog = True
+        # レポート生成後：チャットボタンのみ表示
+        if st.button("▶ STRATEGY CHAT", key="open_chat_dialog_after"):
+            st.session_state.show_chat_dialog = True
 
     # ─── Strategy Chat Dialog ────────────────────────────────────
     if "show_chat_dialog" not in st.session_state:
@@ -402,16 +394,23 @@ def render():
         with st.expander("Approach Plan", expanded=False):
             st.markdown(result.get("approach_plan", ""), unsafe_allow_html=False)
 
+        critique_text = result.get("metadata", {}).get("executive_critique", "")
+        if critique_text:
+            with st.expander("Executive Critique (批評)", expanded=False):
+                st.markdown(critique_text, unsafe_allow_html=False)
+
         meta = result.get("metadata", {})
         if meta:
             gamma_status = "Available" if meta.get("has_gamma_api") else "Not configured"
             gamma_error = meta.get("gamma_error", "")
             if gamma_error:
                 gamma_status = f'ERROR: {gamma_error[:80]}'
+            refined_status = "Yes" if meta.get("refinement_applied") else "No"
             st.markdown(
                 f'<div class="hypo-content" style="font-size:0.55rem;color:rgba(180,120,255,0.5);text-align:center;">'
                 f'Slides: {meta.get("slide_count", "?")} | '
                 f'UVANCE Refs: {meta.get("uvance_solutions_referenced", "?")} | '
+                f'Refined: {refined_status} | '
                 f'PoC Fatigue: {"Yes" if meta.get("has_poc_fatigue") else "No"} | '
                 f'ROI: {"Yes" if meta.get("has_roi") else "No"} | '
                 f'Gamma: {gamma_status}'
@@ -419,51 +418,6 @@ def render():
                 unsafe_allow_html=True,
             )
 
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    # ─── Proposal History Panel ───────────────────────────────────
-    gen_history = get_generation_history()
-    if gen_history:
-        st.markdown("""<style>
-        .proposal-history {
-            background: rgba(0,8,18,0.95);
-            border: 1px solid rgba(180,120,255,0.15);
-            border-radius: 4px;
-            padding: 12px 20px;
-            margin: 10px auto;
-            max-width: 900px;
-        }
-        .proposal-history .ph-title {
-            font-family: 'Orbitron', monospace;
-            font-size: 0.5rem;
-            letter-spacing: 3px;
-            color: rgba(180,120,255,0.7);
-            text-align: center;
-            margin-bottom: 8px;
-        }
-        .proposal-history .ph-item {
-            color: rgba(0,255,204,0.6);
-            font-size: 0.6rem;
-            font-family: monospace;
-            padding: 4px 0;
-            border-bottom: 1px solid rgba(180,120,255,0.08);
-        }
-        .proposal-history a { color: rgba(180,120,255,0.8); }
-        </style>""", unsafe_allow_html=True)
-
-        st.markdown('<div class="proposal-history">', unsafe_allow_html=True)
-        st.markdown('<div class="ph-title">PROPOSAL GENERATION HISTORY</div>', unsafe_allow_html=True)
-        for entry in reversed(gen_history[-5:]):
-            date_str = entry.get("generated_at", "")[:10]
-            title = entry.get("opportunity_title", "Unknown")[:60]
-            gamma_link = ""
-            if entry.get("gamma_url"):
-                gamma_link = f' | <a href="{entry["gamma_url"]}" target="_blank">Gamma</a>'
-            status = "OK" if entry.get("success") else "FAIL"
-            st.markdown(
-                f'<div class="ph-item">[{date_str}] {status} — {title}{gamma_link}</div>',
-                unsafe_allow_html=True,
-            )
         st.markdown('</div>', unsafe_allow_html=True)
 
     # ─── Context Library UI ──────────────────────────────────────

@@ -144,6 +144,7 @@ def generate_hypothesis_proposal(
     report_content: str,
     kddi_news: tuple | list = (),
     fujitsu_news: tuple | list = (),
+    progress_callback=None,
 ) -> dict:
     """仮説提案書用の構造化テキストを生成する。
 
@@ -186,6 +187,9 @@ def generate_hypothesis_proposal(
 """
 
     # Phase 1: 仮説提案テキスト生成（Gamma投入用）
+    if progress_callback:
+        progress_callback(30, "仮説提案ドラフト生成中...")
+
     gamma_prompt = f"""# 役割
 あなたは「UVANCE×KDDI仮説提案書」を作成するエキスパートです。
 ピラミッド・ストラクチャー（ミント・ピラミッド原則）に基づき、KDDI経営層（CTO/CDO/事業部長クラス）が10枚のスライドで意思決定できる提案書を作成します。
@@ -328,7 +332,111 @@ Argument型の「判断」＝痛点に対する富士通の見解
     except Exception as e:
         gamma_input = f"提案テキスト生成エラー: {e}"
 
+    # Phase 1.5: エグゼクティブ批評
+    executive_critique = ""
+    refinement_applied = False
+
+    if gamma_input and not gamma_input.startswith("提案テキスト生成エラー"):
+        if progress_callback:
+            progress_callback(40, "エグゼクティブ批評生成中...")
+
+        critique_prompt = f"""# 役割
+あなたは日本の大企業（売上1兆円以上）のCTO/CDOクラスの意思決定者です。
+数多くのベンダー提案を見てきた経験から、「刺さる提案」と「ゴミ箱行きの提案」を瞬時に見分けます。
+あなたは懐疑的で、バズワードや抽象論には厳しく、具体性と実現可能性を重視します。
+
+# タスク
+以下の提案書ドラフトを、KDDIの経営層（CTO/CDO/事業部長）の目線で厳しく批評してください。
+
+# 評価軸（各5点満点）
+1. **具体性**: 数値・期間・体制が具体的か。「〜等」「〜など」で逃げていないか
+2. **KDDI特殊性**: KDDI固有の課題に踏み込んでいるか。他社にも使い回せる汎用提案になっていないか
+3. **リスク評価**: 失敗シナリオや前提条件が明示されているか。楽観的すぎないか
+4. **ROI現実性**: 試算根拠が論理的か。「〜が期待できる」等の曖昧表現でないか
+5. **バズワード汚染度**: DX、AI、共創等のバズワードが実体なく使われていないか（低いほど良い）
+6. **意思決定有効性**: この提案書で「Go/No-Go」の判断ができるか
+
+# 提案書ドラフト
+{gamma_input[:5000]}
+
+# 出力形式（厳守）
+## 総合評価: [A/B/C/D/E]
+（A=即採用レベル, B=修正後採用可, C=大幅修正必要, D=方向性から再検討, E=却下）
+
+## 致命的問題点（最大3つ）
+- [問題1]: [具体的な問題と、なぜ致命的か]
+- [問題2]: ...
+
+## 改善必須事項（最大5つ）
+1. [改善事項]: [具体的にどう改善すべきか]
+2. ...
+
+## 想定質問（経営層が必ず聞く質問3つ）
+1. [質問]: [現状の提案では答えられない理由]
+2. ...
+
+## スライド別修正指示
+- スライドN: [具体的な修正内容]
+（特に問題のあるスライドのみ）"""
+
+        try:
+            executive_critique = chat_completion(
+                messages=[{"role": "user", "content": critique_prompt}],
+                max_tokens=2000,
+                model="claude-sonnet-4-5-20250929",
+            ).strip()
+        except Exception as e:
+            print(f"[PROPOSAL] Executive critique failed: {e}")
+            executive_critique = ""
+
+        # Phase 1.6: 批評反映リファイン
+        if executive_critique:
+            if progress_callback:
+                progress_callback(50, "批評を反映した改善版を生成中...")
+
+            refine_prompt = f"""# 役割
+あなたは提案書ブラッシュアップの専門家です。
+エグゼクティブからの厳しい批評を受け、すべての指摘を解消した改善版を作成します。
+
+# タスク
+以下の「元の提案書」に対する「エグゼクティブ批評」を踏まえ、批評の全指摘事項を解消した**改善版10スライド**を生成してください。
+
+# 元の提案書
+{gamma_input[:5000]}
+
+# エグゼクティブ批評
+{executive_critique}
+
+# 改善の原則
+- 批評で指摘された「致命的問題点」は必ず解消する
+- 「改善必須事項」の全項目に対応する
+- 「想定質問」に先回りして答えられる内容にする
+- 「スライド別修正指示」は該当スライドに反映する
+- 元の提案の良い部分は維持する
+- 数値・根拠をより具体的にする
+- バズワードを実体のある表現に置き換える
+
+# 出力形式
+元の提案書と同じフォーマット（10スライド構成、各スライドにタイトル・メッセージライン・ボディ）で改善版を出力してください。
+フォーマットルールは元の提案書と同一です。"""
+
+            try:
+                refined_input = chat_completion(
+                    messages=[{"role": "user", "content": refine_prompt}],
+                    max_tokens=6000,
+                    model="claude-sonnet-4-5-20250929",
+                ).strip()
+                if refined_input and len(refined_input) > 500:
+                    gamma_input = refined_input
+                    refinement_applied = True
+                else:
+                    print("[PROPOSAL] Refined output too short, keeping original")
+            except Exception as e:
+                print(f"[PROPOSAL] Refinement failed, using original: {e}")
+
     # Phase 2: アプローチ計画生成
+    if progress_callback:
+        progress_callback(60, "アプローチ計画生成中...")
     approach_prompt = f"""# 役割
 あなたはKDDIアカウント戦略の専門家です。
 
@@ -382,6 +490,8 @@ Argument型の「判断」＝痛点に対する富士通の見解
         "has_roi": "ROI" in gamma_input or "投資回収" in gamma_input,
         "has_gamma_api": bool(os.getenv("GAMMA_API_KEY", "")),
         "uvance_solutions_referenced": _count_uvance_references(gamma_input),
+        "executive_critique": executive_critique,
+        "refinement_applied": refinement_applied,
     }
 
     result = {
@@ -407,6 +517,22 @@ def _count_uvance_references(text: str) -> int:
     return sum(1 for kw in keywords if kw in text)
 
 
+def _compute_proposal_score(metadata: dict) -> int:
+    """メタデータからUI表示用スコア(0-100)を算出"""
+    base = 50
+    uvance_refs = metadata.get("uvance_solutions_referenced", 0)
+    base += min(uvance_refs * 8, 24)
+    if metadata.get("has_roi"):
+        base += 12
+    if not metadata.get("has_poc_fatigue"):
+        base += 8
+    if metadata.get("has_gamma_api"):
+        base += 6
+    if metadata.get("refinement_applied"):
+        base += 5
+    return min(base, 100)
+
+
 def _save_proposal_history(result: dict) -> None:
     """提案履歴を保存"""
     try:
@@ -416,11 +542,21 @@ def _save_proposal_history(result: dict) -> None:
             history = json.loads(_PROPOSAL_HISTORY_FILE.read_text(encoding="utf-8"))
 
         # 履歴エントリ（テキスト全文は除外し軽量に）
+        meta = result["metadata"]
+        # 批評全文は重いのでプレビューのみ保存
+        lightweight_meta = {k: v for k, v in meta.items() if k != "executive_critique"}
+        critique_text = meta.get("executive_critique", "")
+        if critique_text:
+            lightweight_meta["executive_critique_preview"] = critique_text[:500]
+        lightweight_meta["refinement_applied"] = meta.get("refinement_applied", False)
+
         entry = {
             "opportunity_title": result["opportunity_title"],
             "generated_at": result["generated_at"],
-            "metadata": result["metadata"],
+            "metadata": lightweight_meta,
             "gamma_input_preview": result["gamma_input"][:300],
+            "approach_plan": result.get("approach_plan", ""),
+            "score": _compute_proposal_score(result.get("metadata", {})),
         }
         history.append(entry)
         # 最大50件

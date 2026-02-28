@@ -113,9 +113,9 @@ def run_weekly_generation(
     opportunity_title = _select_opportunity(kddi_news, fujitsu_news)
     report_content = _build_report_context(kddi_news, fujitsu_news)
 
-    # Step 3: 仮説提案生成
+    # Step 3: 仮説提案生成（内部で30→40→50→60%に進捗）
     if progress_callback:
-        progress_callback(40, "仮説提案書生成中...")
+        progress_callback(25, "仮説提案書生成中...")
 
     from .proposals import generate_hypothesis_proposal
     proposal = generate_hypothesis_proposal(
@@ -123,6 +123,7 @@ def run_weekly_generation(
         report_content=report_content,
         kddi_news=kddi_news,
         fujitsu_news=fujitsu_news,
+        progress_callback=progress_callback,
     )
 
     if not proposal.get("gamma_input"):
@@ -139,7 +140,7 @@ def run_weekly_generation(
     from ..integrations.gamma_client import is_available as gamma_available, generate_and_wait
     if gamma_available():
         if progress_callback:
-            progress_callback(60, "Gamma APIでスライド生成中...")
+            progress_callback(70, "Gamma APIでスライド生成中...")
         try:
             gamma_result = generate_and_wait(
                 proposal["gamma_input"],
@@ -216,9 +217,9 @@ def run_manual_generation(
     except Exception:
         pass
 
-    # 仮説提案生成
+    # 仮説提案生成（内部で30→40→50→60%に進捗）
     if progress_callback:
-        progress_callback(30, "仮説提案書生成中...")
+        progress_callback(25, "仮説提案書生成中...")
 
     from .proposals import generate_hypothesis_proposal
     proposal = generate_hypothesis_proposal(
@@ -226,6 +227,7 @@ def run_manual_generation(
         report_content=report_content,
         kddi_news=kddi_news,
         fujitsu_news=fujitsu_news,
+        progress_callback=progress_callback,
     )
 
     if not proposal.get("gamma_input"):
@@ -242,7 +244,7 @@ def run_manual_generation(
     from ..integrations.gamma_client import is_available as gamma_available, generate_and_wait as gamma_gen
     if gamma_available():
         if progress_callback:
-            progress_callback(60, "Gamma APIでスライド生成中...")
+            progress_callback(70, "Gamma APIでスライド生成中...")
         try:
             gamma_result = gamma_gen(
                 proposal["gamma_input"],
@@ -342,6 +344,8 @@ def _save_generation_result(result: WeeklyResult) -> None:
         "generated_at": result.generated_at,
         "gamma_url": result.gamma_url,
         "success": result.success,
+        "approach_plan": result.approach_plan,
+        "score": _compute_display_score(result.metadata),
     })
     schedule["history"] = history[-20:]  # 最大20件
 
@@ -359,11 +363,32 @@ def _save_generation_result(result: WeeklyResult) -> None:
                 content += f"Gamma URL: {result.gamma_url}\n\n"
             content += "---\n\n"
             content += result.gamma_input
+            # 批評セクション追加
+            critique_text = result.metadata.get("executive_critique", "")
+            if critique_text:
+                content += "\n\n---\n\n# Executive Critique\n\n"
+                content += critique_text
             content += "\n\n---\n\n# Approach Plan\n\n"
             content += result.approach_plan
             proposal_file.write_text(content, encoding="utf-8")
         except Exception as e:
             print(f"[SCHEDULER] Proposal file save failed: {e}")
+
+
+def _compute_display_score(metadata: dict) -> int:
+    """メタデータからUI表示用スコア(0-100)を算出"""
+    base = 50
+    uvance_refs = metadata.get("uvance_solutions_referenced", 0)
+    base += min(uvance_refs * 8, 24)
+    if metadata.get("has_roi"):
+        base += 12
+    if not metadata.get("has_poc_fatigue"):
+        base += 8
+    if metadata.get("has_gamma_api"):
+        base += 6
+    if metadata.get("refinement_applied"):
+        base += 5
+    return min(base, 100)
 
 
 def get_generation_history() -> list[dict]:
