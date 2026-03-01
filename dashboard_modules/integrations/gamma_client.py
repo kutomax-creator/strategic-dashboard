@@ -112,9 +112,7 @@ def create_presentation(
         "themeId": "4ykmbx7j0r3xblp",
         "additionalInstructions": _ADDITIONAL_INSTRUCTIONS,
         "textOptions": {
-            "amount": "concise",
-            "tone": tone,
-            "audience": audience,
+            "amount": "brief",
             "language": language,
         },
         "imageOptions": {
