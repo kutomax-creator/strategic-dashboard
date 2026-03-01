@@ -170,11 +170,23 @@ def generate_hypothesis_proposal(
     from ..data.uvance_knowledge import get_uvance_context_for_proposal, get_poc_fatigue_context
     from ..data.kddi_watcher import get_intelligence_summary
     from ..components.context import get_active_context_data
+    from ..data.proposal_templates import select_template, get_past_template_names
+    from ..data.industry_context import get_industry_context_for_proposal, get_kddi_strategic_context
 
-    uvance_context = get_uvance_context_for_proposal(opportunity_title)
+    # テンプレート選択
+    past_templates = get_past_template_names()
+    # オポチュニティタイトルからバーティカルを推定
+    vertical = _infer_vertical(opportunity_title)
+    template = select_template(opportunity_title, vertical, past_templates)
+
+    uvance_context = get_uvance_context_for_proposal(opportunity_title, preferred_vertical=vertical)
     poc_context = get_poc_fatigue_context()
     intel_summary = get_intelligence_summary(15)
     context_data = get_active_context_data() or ""
+
+    # 業界・競合コンテキスト
+    industry_ctx = get_industry_context_for_proposal(vertical)
+    kddi_strategy = get_kddi_strategic_context()
 
     kddi_news_text = "\n".join(f"- {t}" for t in kddi_news[:10]) if kddi_news else "（最新ニュースなし）"
     fujitsu_news_text = "\n".join(f"- {t}" for t in fujitsu_news[:10]) if fujitsu_news else "（最新ニュースなし）"
@@ -188,11 +200,12 @@ def generate_hypothesis_proposal(
 
     # Phase 1: 仮説提案テキスト生成（Gamma投入用）
     if progress_callback:
-        progress_callback(30, "仮説提案ドラフト生成中...")
+        progress_callback(30, f"仮説提案ドラフト生成中（{template.name}形式）...")
 
     gamma_prompt = f"""# 役割
 あなたは「UVANCE×KDDI仮説提案書」を作成するエキスパートです。
-ピラミッド・ストラクチャー（ミント・ピラミッド原則）に基づき、KDDI経営層（CTO/CDO/事業部長クラス）が10枚のスライドで意思決定できる提案書を作成します。
+今回は「{template.name}」形式で作成します。{template.description}
+ピラミッド・ストラクチャー（ミント・ピラミッド原則）に基づき、KDDI経営層（CTO/CDO/事業部長クラス）が意思決定できる提案書を作成します。
 
 # 提案書作成の原則（必ず遵守）
 
@@ -222,6 +235,7 @@ def generate_hypothesis_proposal(
 - イカ資料禁止：「以下で説明する」「下図で～」等の曖昧表現は使わない
 - 必ず自分の意見・判断を言語化する（状況や選択肢の提示だけで終わらない）
 - 頁数は最小限に。聞き手にとって冗長な情報は削る
+- トーン: {template.tone}
 
 # 入力情報
 
@@ -243,10 +257,16 @@ def generate_hypothesis_proposal(
 {uvance_context}
 
 {poc_context}
+
+# 業界・競合コンテキスト
+{industry_ctx}
+
+# KDDI中期経営戦略
+{kddi_strategy}
 {context_section}
 
 # 出力指示
-以下の10スライド構成で**Gamma.app用のプレーンテキスト**を生成してください。
+以下のスライド構成で**Gamma.app用のプレーンテキスト**を生成してください。
 
 **フォーマットルール:**
 - 各スライドは以下の形式で記述:
@@ -260,66 +280,15 @@ def generate_hypothesis_proposal(
 - 数値・ROIは具体的に
 - 専門用語は最小限
 
-## スライド構成（Argument型: 状況→判断→実施策）
-
-# スライド1: エグゼクティブサマリー
-ピラミッドの頂点＝提案全体の結論
-- 「KDDIの[課題]に対し、[UVANCEソリューション]で[期待成果]を実現する」を一言で
-- KDDIの経営ビジョンへの共感（買い手目線）
-- 期待成果（定量数値必須）
-
-# スライド2: KDDI経営課題①（状況・事実）
-- 最も重要な経営課題を構造化
-- 外部環境の変化との因果関係
-- 定量的インパクト（放置した場合のリスク）
-
-# スライド3: KDDI経営課題②（状況・事実）
-- 2番目の経営課題（スライド2とMECEの関係）
-- 業界トレンドとの関連
-- 定量的インパクト
-
-# スライド4: 仮説提案（意味合い・判断）
-Argument型の「判断」＝痛点に対する富士通の見解
-- 「こうすればKDDIの課題が解決する」を明言
-- 痛点→仮説のロジックを1枚で
-- UVANCEソリューションとの紐付け
-
-# スライド5: UVANCE具体提案①（実施策・How）
-- ソリューション名と概要
-- KDDIでの具体的適用シーン
-- 課題→ソリューション→期待効果のマッピング
-
-# スライド6: UVANCE具体提案②（実施策・How）
-- 2つ目のソリューション
-- スライド5とのシナジー効果
-- 課題②との明確なマッピング
-
-# スライド7: 共創型推進アプローチ（How）
-- 本番環境を前提とした段階的推進（Small Start → Quick Win → Full Scale）
-- 3ヶ月で本番稼働可能なMVP構築
-- 初期段階からKPIを設定し、投資判断に必要なデータを取得
-- 富士通×KDDIの共同プロダクトオーナー体制
-
-# スライド8: ROI試算
-- 定量効果（コスト削減額、売上向上額）を具体数値で
-- 投資回収期間と試算根拠
-- 定性効果も含む
-
-# スライド9: Why Fujitsu
-- KDDIの課題解決に対する富士通固有の差別化要素
-- KDDI×富士通の過去実績・信頼関係
-- パートナーとしての姿勢と覚悟
-
-# スライド10: Next Steps
-- 具体的な次のアクション（日程入り）
-- 初回共創ワークショップ提案
-- 担当者・連絡先
+# スライド構成
+{template.slide_structure}
 
 ## 重要な方針
 - 「PoC」「実証実験」という言葉は使わない。代わりに「Phase1本番稼働」「MVP構築」「共創推進」等を使う
 - 提案全体が「実験で終わらず本番に直結する」設計であること
 - 机上の空論ではなく、3ヶ月で成果が出る具体性を持たせること
-- メッセージラインだけを10個並べて読み、ストーリーとして成立するか自己チェックすること
+- メッセージラインだけを並べて読み、ストーリーとして成立するか自己チェックすること
+- 競合（NEC/NTTデータ/アクセンチュア）との差別化を意識した内容にすること
 
 上記の構成・原則・方針に従い、提案書テキストを生成してください。"""
 
@@ -415,9 +384,10 @@ Argument型の「判断」＝痛点に対する富士通の見解
 - 元の提案の良い部分は維持する
 - 数値・根拠をより具体的にする
 - バズワードを実体のある表現に置き換える
+- 競合差別化のポイントを明確にする
 
 # 出力形式
-元の提案書と同じフォーマット（10スライド構成、各スライドにタイトル・メッセージライン・ボディ）で改善版を出力してください。
+元の提案書と同じフォーマット（{template.name}形式、各スライドにタイトル・メッセージライン・ボディ）で改善版を出力してください。
 フォーマットルールは元の提案書と同一です。"""
 
             try:
@@ -484,8 +454,11 @@ Argument型の「判断」＝痛点に対する富士通の見解
         approach_plan = f"アプローチ計画生成エラー: {e}"
 
     # メタデータ抽出
+    slide_count = gamma_input.count("# スライド") if gamma_input else 0
     metadata = {
-        "slide_count": 10,
+        "slide_count": slide_count if slide_count > 0 else 10,
+        "template_used": template.name,
+        "vertical": vertical,
         "has_poc_fatigue": "PoC" in gamma_input,
         "has_roi": "ROI" in gamma_input or "投資回収" in gamma_input,
         "has_gamma_api": bool(os.getenv("GAMMA_API_KEY", "")),
@@ -506,6 +479,25 @@ Argument型の「判断」＝痛点に対する富士通の見解
     _save_proposal_history(result)
 
     return result
+
+
+def _infer_vertical(opportunity_title: str) -> str:
+    """オポチュニティタイトルからバーティカルを推定"""
+    title_lower = opportunity_title.lower()
+    vertical_keywords = {
+        "Healthy Living": ["ヘルスケア", "医療", "健康", "health", "living", "介護", "製薬"],
+        "Trusted Society": ["スマートシティ", "防災", "自治体", "都市", "society", "maas", "交通"],
+        "Hybrid IT": ["クラウド", "ハイブリッド", "hybrid", "セキュリティ", "ゼロトラスト", "sase", "エッジ"],
+        "Digital Shifts": ["dx", "ai", "生成ai", "デジタル", "kozuchi", "データ", "erp", "sap", "esg", "サステナ", "カーボン"],
+    }
+    best_vertical = "Digital Shifts"
+    best_score = 0
+    for vertical, keywords in vertical_keywords.items():
+        score = sum(1 for kw in keywords if kw in title_lower)
+        if score > best_score:
+            best_score = score
+            best_vertical = vertical
+    return best_vertical
 
 
 def _count_uvance_references(text: str) -> int:

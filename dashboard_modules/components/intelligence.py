@@ -15,6 +15,9 @@ WAKONX_KEYWORDS = {
     "IoT": {"uvance": "Digital Shifts", "action": "IoT×AI統合ソリューション提案", "priority": "MEDIUM"},
     "データ活用": {"uvance": "Digital Shifts", "action": "Data e-TRUST活用提案", "priority": "HIGH"},
     "セキュリティ": {"uvance": "Digital Shifts", "action": "ゼロトラスト統合提案", "priority": "MEDIUM"},
+    "エッジ": {"uvance": "Hybrid IT", "action": "5Gエッジコンピューティング提案", "priority": "HIGH"},
+    "ゼロトラスト": {"uvance": "Hybrid IT", "action": "ゼロトラストセキュリティ提案", "priority": "HIGH"},
+    "メタバース": {"uvance": "Trusted Society", "action": "XR×5Gプラットフォーム提案", "priority": "MEDIUM"},
 }
 
 BX_KEYWORDS = {
@@ -25,6 +28,15 @@ BX_KEYWORDS = {
     "新規事業": {"uvance": "Digital Shifts", "action": "新規事業立上げ支援提案", "priority": "HIGH"},
     "デジタル": {"uvance": "Digital Shifts", "action": "デジタルビジネス構築支援", "priority": "MEDIUM"},
     "パートナー": {"uvance": "Digital Shifts", "action": "パートナーシップ提案", "priority": "MEDIUM"},
+    "ヘルスケア": {"uvance": "Healthy Living", "action": "遠隔医療・健康経営DX提案", "priority": "HIGH"},
+    "医療": {"uvance": "Healthy Living", "action": "医療DX基盤提案", "priority": "MEDIUM"},
+    "スマートシティ": {"uvance": "Trusted Society", "action": "デジタルツイン都市提案", "priority": "HIGH"},
+    "防災": {"uvance": "Trusted Society", "action": "防災DX基盤提案", "priority": "MEDIUM"},
+    "自治体": {"uvance": "Trusted Society", "action": "行政DX支援提案", "priority": "MEDIUM"},
+    "カーボン": {"uvance": "Digital Shifts", "action": "CO2可視化・GX推進提案", "priority": "HIGH"},
+    "ESG": {"uvance": "Digital Shifts", "action": "ESGデータ基盤提案", "priority": "HIGH"},
+    "SAP": {"uvance": "Digital Shifts", "action": "基幹システム刷新提案", "priority": "HIGH"},
+    "ERP": {"uvance": "Digital Shifts", "action": "ERP移行支援提案", "priority": "MEDIUM"},
 }
 
 

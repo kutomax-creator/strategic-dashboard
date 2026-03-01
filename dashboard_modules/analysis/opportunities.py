@@ -26,6 +26,39 @@ MOCK_OPPORTUNITIES = [
 ]
 
 
+def _get_past_titles(n: int = 10) -> list[str]:
+    """直近n件の提案タイトルを取得"""
+    try:
+        from .weekly_scheduler import get_generation_history
+        return [h["opportunity_title"] for h in get_generation_history()[-n:] if h.get("opportunity_title")]
+    except Exception:
+        return []
+
+
+def _get_underrepresented_verticals() -> list[str]:
+    """過去提案で少ないバーティカルを特定"""
+    from collections import Counter
+    all_verticals = {"Digital Shifts", "Hybrid IT", "Healthy Living", "Trusted Society"}
+
+    try:
+        from .weekly_scheduler import get_generation_history
+        history = get_generation_history()[-10:]
+        past_verticals = []
+        for h in history:
+            meta = h.get("metadata", {})
+            if isinstance(meta, dict) and meta.get("vertical"):
+                past_verticals.append(meta["vertical"])
+            # uvance_area fallback
+            elif h.get("uvance_area"):
+                past_verticals.append(h["uvance_area"])
+        counts = Counter(past_verticals)
+    except Exception:
+        counts = Counter()
+
+    # 出現回数が少ない順にソート
+    return sorted(all_verticals, key=lambda v: counts.get(v, 0))
+
+
 @st.cache_data(ttl=7200)
 def _fetch_opportunities_api(kddi_news: tuple[str, ...], fujitsu_news: tuple[str, ...],
                              kddi_press: tuple[str, ...] = (), fujitsu_press: tuple[str, ...] = ()) -> list[dict]:
@@ -37,6 +70,18 @@ def _fetch_opportunities_api(kddi_news: tuple[str, ...], fujitsu_news: tuple[str
         fujitsu_text = "\n".join(f"- {t}" for t in fujitsu_news) if fujitsu_news else "（取得なし）"
         kddi_press_text = "\n".join(f"- {t}" for t in kddi_press) if kddi_press else "（取得なし）"
         fujitsu_press_text = "\n".join(f"- {t}" for t in fujitsu_press) if fujitsu_press else "（取得なし）"
+
+        # 過去提案タイトル・バーティカル情報を収集
+        past_titles = _get_past_titles()
+        underrepresented = _get_underrepresented_verticals()
+        past_titles_text = "\n".join(f"- {t}" for t in past_titles) if past_titles else "（過去提案なし）"
+        underrepresented_text = ", ".join(underrepresented[:3]) if underrepresented else "特になし"
+
+        # 業界・競合コンテキスト取得
+        from ..data.industry_context import get_industry_context_for_proposal, get_kddi_strategic_context
+        industry_ctx = get_industry_context_for_proposal("Digital Shifts")  # 汎用的に取得
+        kddi_strategy = get_kddi_strategic_context()
+
         text = chat_completion(
             messages=[{
                 "role": "user",
@@ -56,12 +101,27 @@ def _fetch_opportunities_api(kddi_news: tuple[str, ...], fujitsu_news: tuple[str
 【富士通プレスリリース（UVANCE含む）】
 {fujitsu_press_text}
 
+【KDDI中期経営戦略】
+{kddi_strategy[:1500]}
+
+【競合・業界トレンド】
+{industry_ctx[:1500]}
+
 **重要:**
 - KDDIプレスリリースから読み取れる課題・ニーズを仮説として活用
 - 富士通プレスリリースのUVANCEソリューションとの交差点を見出す
 - WAKONX（DX推進、AI活用、データ利活用）との連携機会を最優先
 - KDDI BX（事業変革、共創、新規事業）との協業機会を重視
 - 具体的な提案アクション（どのUvanceソリューションで何を提案するか）を明記
+
+# バリエーション要求（必ず遵守）
+- 3件のオポチュニティは必ず**異なるUvanceバーティカル**から選ぶこと
+- 以下のバーティカルから最低2つ含めること: {underrepresented_text}
+- Uvanceバーティカル: Digital Shifts, Hybrid IT, Healthy Living, Trusted Society
+- 過去に生成済みのテーマと重複しないこと
+
+# 過去の提案テーマ（重複回避）
+{past_titles_text}
 
 以下のJSON形式で出力してください。他のテキストは一切不要です。JSONのみ出力してください。
 
