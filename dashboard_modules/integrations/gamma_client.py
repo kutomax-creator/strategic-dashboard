@@ -2,6 +2,12 @@
 Gamma API Client - Generate presentations via Gamma.app API
 Docs: https://developers.gamma.app/docs/getting-started
 API v1.0 (GA since 2025-11-05)
+
+Design optimization based on:
+- textMode: "preserve" (Claude pre-processes text, Gamma handles visual design only)
+- imageOptions: "aiGenerated" + FLUX.1 Pro model for highest quality
+- additionalInstructions: Smart layout directives for professional slide design
+- Markdown AST: H1/H2/list structure triggers Gamma's smart layout engine
 """
 from __future__ import annotations
 
@@ -15,6 +21,27 @@ import requests
 _BASE_URL = "https://public-api.gamma.app/v1.0"
 _POLL_INTERVAL = 5  # seconds
 _MAX_POLL_TIME = 300  # 5 minutes
+
+# Smart layout instructions for professional presentation design
+_ADDITIONAL_INSTRUCTIONS = (
+    "Apply the following design principles to all cards:\n"
+    "1. Use timeline or process flow layouts for any implementation roadmap or schedule sections.\n"
+    "2. Format feature lists or comparison items as a multi-column card layout with icons.\n"
+    "3. Use a table layout for ROI calculations and financial data.\n"
+    "4. Apply a funnel or pyramid diagram for strategic frameworks.\n"
+    "5. Keep text concise — no card should have more than 5 bullet points.\n"
+    "6. Use bold callout boxes for key metrics and KPIs.\n"
+    "7. Ensure generous whitespace between sections for a premium, executive feel.\n"
+    "8. The overall tone should be sophisticated and corporate, suitable for C-level executives."
+)
+
+# Image style for consistent visual identity across slides
+_IMAGE_STYLE = (
+    "Minimal corporate illustration, clean geometric shapes, "
+    "deep indigo and electric blue color palette, "
+    "subtle gradients, professional and modern aesthetic, "
+    "no text in images, no photorealistic humans"
+)
 
 
 def _get_gamma_key() -> str:
@@ -79,18 +106,21 @@ def create_presentation(
 
     payload = {
         "inputText": input_text,
-        "textMode": "generate",
+        "textMode": "preserve",
         "format": "presentation",
         "numCards": num_cards,
         "themeId": "4ykmbx7j0r3xblp",
+        "additionalInstructions": _ADDITIONAL_INSTRUCTIONS,
         "textOptions": {
-            "amount": "medium",
+            "amount": "concise",
             "tone": tone,
             "audience": audience,
             "language": language,
         },
         "imageOptions": {
-            "source": "ai",
+            "source": "aiGenerated",
+            "model": "flux-1-pro",
+            "style": _IMAGE_STYLE,
         },
     }
 

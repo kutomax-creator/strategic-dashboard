@@ -142,8 +142,10 @@ def run_weekly_generation(
         if progress_callback:
             progress_callback(70, "Gamma APIでスライド生成中...")
         try:
+            slide_count = proposal.get("metadata", {}).get("slide_count", 10)
             gamma_result = generate_and_wait(
                 proposal["gamma_input"],
+                num_cards=slide_count,
                 callback=lambda msg: progress_callback(70, msg) if progress_callback else None,
             )
             if gamma_result.gamma_url:
@@ -245,8 +247,10 @@ def run_manual_generation(
         if progress_callback:
             progress_callback(70, "Gamma APIでスライド生成中...")
         try:
+            slide_count = proposal.get("metadata", {}).get("slide_count", 10)
             gamma_result = gamma_gen(
                 proposal["gamma_input"],
+                num_cards=slide_count,
                 callback=lambda msg: progress_callback(70, msg) if progress_callback else None,
             )
             if gamma_result.gamma_url:
